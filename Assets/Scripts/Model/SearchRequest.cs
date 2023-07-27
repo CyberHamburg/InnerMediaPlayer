@@ -38,7 +38,7 @@ namespace InnerMediaPlayer.Model.Search
             type = "1";
             offset = "0";
             total = "true";
-            limit = "8";
+            limit = "20";
             this.csrf_token = csrf_token;
         }
     }
