@@ -431,7 +431,6 @@ namespace LitJson
                 AddObjectMetadata (value_type);
                 ObjectMetadata t_data = object_metadata[value_type];
 
-                Debug.Log(value_type);
                 instance = Activator.CreateInstance(value_type);
 
                 while (true) {

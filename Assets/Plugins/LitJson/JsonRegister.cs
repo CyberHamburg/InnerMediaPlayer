@@ -1,10 +1,11 @@
 using UnityEngine;
+using Zenject;
 
 namespace LitJson.Extension
 {
-    public class JsonRegister : MonoBehaviour
+    public class JsonRegister : IInitializable
     {
-        private void Start()
+        public void Initialize()
         {
 #if !UNITY_EDITOR
             JsonExtension.Registered();

@@ -1,0 +1,24 @@
+{
+    "name": "InnerMediaPlayer",
+    "rootNamespace": "InnerMediaPlayer",
+    "references": [
+        "GUID:a6c0cb996f830e5488ccbb6b7d56e125",
+        "GUID:796c6303b5dc9344fb75682dcfeed10f",
+        "GUID:06ca3798d35b78d4bbc277a5d0b1c59d",
+        "GUID:0d8beb7f090555447a6cf5ce9e54dbb4"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "QRCoder.dll",
+        "QRCoder.Unity.dll",
+        "System.Drawing.Common.dll",
+        "Zenject-usage.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
