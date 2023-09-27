@@ -83,11 +83,11 @@ namespace InnerMediaPlayer.UI
             _lyric.gameObject.SetActive(!_lyric.gameObject.activeSelf);
         }
 
-        internal Task<AudioClip> GetAudioClip(int id) => _playingList.GetAudioClip(id);
+        internal Task<AudioClip> GetAudioClipAsync(int id) => _playingList.GetAudioClipAsync(id);
 
-        internal Task IterationList(int disposedSongId,bool stopByForce,CancellationToken token)
+        internal Task IterationListAsync(int disposedSongId,bool stopByForce,CancellationToken token)
         {
-            return _playingList.IterationList(UpdateUI, _lyric.DisplayLyric, _lyric.Dispose, _lyric.Disable,disposedSongId, stopByForce, token);
+            return _playingList.IterationListAsync(UpdateUI, _lyric.DisplayLyric, _lyric.Dispose, _lyric.Disable,disposedSongId, stopByForce, token);
         }
 
         internal int ForceAdd(int id, string songName, string artist, AudioClip audioClip, Sprite album) =>

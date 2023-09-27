@@ -53,14 +53,14 @@ namespace InnerMediaPlayer.UI
 
         internal Task DisplayLyric(int id,CancellationToken token)
         {
-            return _lyrics.DisplayLyric(id, Control, token);
+            return _lyrics.DisplayLyricAsync(id, Control, token);
         }
 
         internal Task InstantiateLyric(int id, Texture2D album)
         {
             if (_lyricContent == null)
                 _lyricContent = FindGameObjectInList("Content", "Viewport").transform;
-            return _lyrics.InstantiateLyric(id, _lyricContent, Control, album);
+            return _lyrics.InstantiateLyricAsync(id, _lyricContent, Control, album);
         }
 
         internal void SetDefaultColor()

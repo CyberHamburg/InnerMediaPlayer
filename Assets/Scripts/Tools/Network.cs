@@ -34,7 +34,7 @@ namespace InnerMediaPlayer.Tools
             _formFields = new Dictionary<string, string>(5) { { EncSeckey, _crypto._encSecKey } };
         }
 
-        internal async Task<(string json, Dictionary<string, string> headers)> PostWithHeaders(string url, string json)
+        internal async Task<(string json, Dictionary<string, string> headers)> PostWithHeadersAsync(string url, string json)
         {
             string param = _crypto.Encrypt(json);
             WWWForm form = new WWWForm();
@@ -54,7 +54,7 @@ namespace InnerMediaPlayer.Tools
         /// <param name="url"></param>
         /// <param name="object"></param>
         /// <returns></returns>
-        internal async Task<(string json, Dictionary<string, string> headers)> PostWithHeaders<T>(string url, T @object)
+        internal async Task<(string json, Dictionary<string, string> headers)> PostWithHeadersAsync<T>(string url, T @object)
             where T : class
         {
             string param = _crypto.Encrypt(@object);
@@ -68,7 +68,7 @@ namespace InnerMediaPlayer.Tools
             return (webRequest.downloadHandler.text, webRequest.GetResponseHeaders());
         }
 
-        internal async Task<string> Post(string url, string json, bool needCsrfToken = false, bool needCookies = false)
+        internal async Task<string> PostAsync(string url, string json, bool needCsrfToken = false, bool needCookies = false)
         {
             string param = _crypto.Encrypt(json);
             if (_formFields.ContainsKey(Params))
@@ -77,7 +77,7 @@ namespace InnerMediaPlayer.Tools
             switch (needCsrfToken)
             {
                 case true when !_formFields.ContainsKey(CsrfToken):
-                    Cookies.Cookie cookie = await _cookies.GetCsrfToken();
+                    Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
                     _formFields.Add(CsrfToken, cookie.value);
                     break;
                 case false when _formFields.ContainsKey(CsrfToken):
@@ -94,7 +94,7 @@ namespace InnerMediaPlayer.Tools
             return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
         }
 
-        internal async Task<string> Post<T>(string url, T @object, bool needCsrfToken = false, bool needCookies = false)
+        internal async Task<string> PostAsync<T>(string url, T @object, bool needCsrfToken = false, bool needCookies = false)
             where T : class
         {
             string param = _crypto.Encrypt(@object);
@@ -104,7 +104,7 @@ namespace InnerMediaPlayer.Tools
             switch (needCsrfToken)
             {
                 case true when !_formFields.ContainsKey(CsrfToken):
-                    Cookies.Cookie cookie = await _cookies.GetCsrfToken();
+                    Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
                     _formFields.Add(CsrfToken, cookie.value);
                     break;
                 case false when _formFields.ContainsKey(CsrfToken):
@@ -126,7 +126,7 @@ namespace InnerMediaPlayer.Tools
             return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
         }
 
-        internal async Task<string> Post(string url, bool needCookies = false)
+        internal async Task<string> PostAsync(string url, bool needCookies = false)
         {
             using UnityWebRequest unityWebRequest = UnityWebRequest.Post(url, _formFields);
             SetRequestHeaders(unityWebRequest, needCookies);
@@ -141,7 +141,7 @@ namespace InnerMediaPlayer.Tools
             return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
         }
 
-        internal async Task<string> Post(string url, WWWForm wwwForm, bool needCookies = false)
+        internal async Task<string> PostAsync(string url, WWWForm wwwForm, bool needCookies = false)
         {
             using UnityWebRequest unityWebRequest = UnityWebRequest.Post(url, wwwForm);
             SetRequestHeaders(unityWebRequest, needCookies);
@@ -151,7 +151,7 @@ namespace InnerMediaPlayer.Tools
             return Encoding.UTF8.GetString(unityWebRequest.downloadHandler.data);
         }
 
-        internal async Task<string> Get(string url, bool needCookies = false, params string[] keyValue)
+        internal async Task<string> GetAsync(string url, bool needCookies = false, params string[] keyValue)
         {
             Uri uri = CombineUri(url, keyValue);
             using UnityWebRequest unityWebRequest = UnityWebRequest.Get(uri);
@@ -162,7 +162,7 @@ namespace InnerMediaPlayer.Tools
             return Encoding.UTF8.GetString(unityWebRequest.downloadHandler.data);
         }
 
-        internal async Task<AudioClip> GetAudioClip(string url, string md5, AudioType audioType)
+        internal async Task<AudioClip> GetAudioClipAsync(string url, string md5, AudioType audioType)
         {
             using UnityWebRequest unityWebRequest = UnityWebRequestMultimedia.GetAudioClip(url, audioType);
             SetRequestHeaders(unityWebRequest, false);
@@ -177,7 +177,7 @@ namespace InnerMediaPlayer.Tools
             return downloadHandlerAudioClip.audioClip;
         }
 
-        internal async Task<Texture2D> GetTexture(string url, params string[] keyValue)
+        internal async Task<Texture2D> GetTextureAsync(string url, params string[] keyValue)
         {
             Uri uri = CombineUri(url, keyValue);
             using UnityWebRequest unityWebRequest = UnityWebRequestTexture.GetTexture(uri);

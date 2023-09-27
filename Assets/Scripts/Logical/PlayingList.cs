@@ -44,7 +44,7 @@ namespace InnerMediaPlayer.Logical
         private bool _isClickedNextSong;
 
         /// <summary>
-        /// true为由事件决定链表与ui顺序的处理，false为线程决定
+        /// true为由事件决定链表与ui顺序的处理，false为遍历列表时决定
         /// </summary>
         private bool _handledByEvent;
 
@@ -497,7 +497,7 @@ namespace InnerMediaPlayer.Logical
         /// <param name="stopByForce">是否被强制停止播放</param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task IterationList(Action<Song> updateUI,Func<int,CancellationToken,Task> updateLyric,Action<int> disposeLyric,Action<int> disableLyric,int disposedSongId, bool stopByForce, CancellationToken token)
+        internal async Task IterationListAsync(Action<Song> updateUI,Func<int,CancellationToken,Task> updateLyric,Action<int> disposeLyric,Action<int> disableLyric,int disposedSongId, bool stopByForce, CancellationToken token)
         {
             #region Log
 
@@ -534,7 +534,7 @@ namespace InnerMediaPlayer.Logical
                     _audioSource.Play();
                 }
 
-                //播放或暂停时让出当前线程
+                //播放或暂停时让出控制权
                 while (_audioSource.isPlaying || Pause && PlayList.Count > 0)
                 {
                     await Task.Yield();
@@ -585,15 +585,15 @@ namespace InnerMediaPlayer.Logical
             }
         }
 
-        internal async Task<AudioClip> GetAudioClip(int id)
+        internal async Task<AudioClip> GetAudioClipAsync(int id)
         {
             //由歌曲获取到歌曲详情，包括播放的url
-            string json = await _network.Get(Network.SongUrl, false, "id", id.ToString(), "ids", $"[{id}]", "br",
+            string json = await _network.GetAsync(Network.SongUrl, false, "id", id.ToString(), "ids", $"[{id}]", "br",
                 "999000");
             Debug.Log(json);
             SongResult songResult = JsonMapper.ToObject<SongResult>(json);
             DataItem item = songResult.data[0];
-            AudioClip clip = await _network.GetAudioClip(item.url, item.md5, AudioType.MPEG);
+            AudioClip clip = await _network.GetAudioClipAsync(item.url, item.md5, AudioType.MPEG);
             return clip;
         }
 

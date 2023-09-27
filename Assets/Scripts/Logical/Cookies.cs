@@ -65,7 +65,7 @@ namespace InnerMediaPlayer.Logical
             cookie.value = newValue;
         }
 
-        internal async Task<Cookie> Find(string name)
+        internal async Task<Cookie> FindAsync(string name)
         {
             while (!_loadDone)
             {
@@ -75,11 +75,11 @@ namespace InnerMediaPlayer.Logical
             return cookie;
         }
 
-        internal async Task<Cookie> GetCsrfToken()
+        internal async Task<Cookie> GetCsrfTokenAsync()
         {
             if (_csrfToken != null)
                 return _csrfToken;
-            _csrfToken = await Find(CsrfTokenName);
+            _csrfToken = await FindAsync(CsrfTokenName);
             return _csrfToken;
         }
 
@@ -88,7 +88,7 @@ namespace InnerMediaPlayer.Logical
             allCookies.Clear();
         }
 
-        internal async Task LoadFromFile()
+        internal async Task LoadFromFileAsync()
         {
             using FileStream fileStream = File.Open(_fileLocation, FileMode.OpenOrCreate, FileAccess.Read);
             byte[] data = new byte[fileStream.Length];
@@ -101,7 +101,7 @@ namespace InnerMediaPlayer.Logical
             _loadDone = true;
         }
 
-        internal async Task SaveToFile()
+        internal async Task SaveToFileAsync()
         {
             string json = JsonMapper.ToJson(this);
             byte[] data = Encoding.UTF8.GetBytes(json);

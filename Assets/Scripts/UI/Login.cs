@@ -35,7 +35,7 @@ namespace InnerMediaPlayer.UI
             _qrCode = FindGameObjectInList("QrCode", null).GetComponent<Image>();
             _qrState = FindGameObjectInList("State", "QrCode").GetComponent<Text>();
 
-            await _cookies.LoadFromFile();
+            await _cookies.LoadFromFileAsync();
             if (_cookies.Count == 0)
             {
                 _qrLogin.onClick.AddListener(QrLogin);
@@ -44,9 +44,9 @@ namespace InnerMediaPlayer.UI
             {
                 #region 对登录状态续存（看url应该是）
 
-                Cookies.Cookie cookie = await _cookies.GetCsrfToken();
+                Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
                 Dictionary<string, string> crsfToken = new Dictionary<string, string>(1) { { Network.CsrfToken, cookie.value } };
-                string result = await _network.Post(Network.LoginRefreshUrl, crsfToken, true, true);
+                string result = await _network.PostAsync(Network.LoginRefreshUrl, crsfToken, true, true);
                 LoginRefreshResult refreshCode = JsonMapper.ToObject<LoginRefreshResult>(result);
                 //貌似这个状态码是登录过期？
                 if (refreshCode.code == 301)
@@ -66,7 +66,7 @@ namespace InnerMediaPlayer.UI
             #region Post登录请求并制作二维码
 
             LoginUnikeyRequest loginRequest = new LoginUnikeyRequest();
-            string loginResult = await _network.Post(Network.LoginUrl, loginRequest);
+            string loginResult = await _network.PostAsync(Network.LoginUrl, loginRequest);
             LoginUnikeyResult loginResultObject = JsonMapper.ToObject<LoginUnikeyResult>(loginResult);
             Uri qrCodeUrl = _network.CombineUri(Network.QrCodeGenerateUrl, "codekey", loginResultObject.unikey);
             Sprite sprite = GenerateQrCode(qrCodeUrl.ToString());
@@ -81,7 +81,7 @@ namespace InnerMediaPlayer.UI
             Dictionary<string, string> localHeaders;
             do
             {
-                (string json, Dictionary<string, string> headers) = await _network.PostWithHeaders(Network.QrCodeUrl, loginQrRequest);
+                (string json, Dictionary<string, string> headers) = await _network.PostWithHeadersAsync(Network.QrCodeUrl, loginQrRequest);
                 loginQrResult = JsonMapper.ToObject<LoginQRResult>(json);
                 localHeaders = headers;
                 _qrState.text = loginQrResult.message;
@@ -105,7 +105,7 @@ namespace InnerMediaPlayer.UI
                 _cookies.Add(musicU, musicUString.Substring(0, musicLength));
                 _cookies.Add("NMTID", Crypto.LastKeyString);
                 _cookies.Add("__remember_me", true.ToString());
-                await _cookies.SaveToFile();
+                await _cookies.SaveToFileAsync();
             }
             _qrCode.gameObject.SetActive(false);
             await new WaitForSeconds(2f);

@@ -67,7 +67,7 @@ namespace InnerMediaPlayer.UI
 
             AddEventTriggerInterface(_resultContainer.gameObject, EventTriggerType.EndDrag, JudgeIfTurnThePage);
             AddEventTriggerInterface(_resultContainer.gameObject, EventTriggerType.Drag, CalculateDragDistance);
-            Cookies.Cookie cookie = await _cookies.GetCsrfToken();
+            Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
             _requestJsonData = new SearchRequestData(cookie.value);
             _songItems = new SongDetail[int.Parse(_requestJsonData.limit)];
             for (int i = 0; i < _songItems.Length; i++)
@@ -129,7 +129,7 @@ namespace InnerMediaPlayer.UI
                 _requestJsonData.offset = (--page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
                 _network.UpdateFormData(Network.Params, encryptRequestData);
-                await SearchSong();
+                await SearchSongAsync();
             }
             //下一页
             else if (_currentPageDistance > TurnThePageDistance)
@@ -144,7 +144,7 @@ namespace InnerMediaPlayer.UI
                 _requestJsonData.offset = (++page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
                 _network.UpdateFormData(Network.Params, encryptRequestData);
-                await SearchSong();
+                await SearchSongAsync();
             }
         }
 
@@ -165,13 +165,13 @@ namespace InnerMediaPlayer.UI
             string unescapedString = System.Text.RegularExpressions.Regex.Unescape(unencryptedString);
             string encrypt = _crypto.Encrypt(unescapedString);
             _network.UpdateFormData(Network.Params, encrypt);
-            await SearchSong();
+            await SearchSongAsync();
         }
 
-        private async Task SearchSong()
+        private async Task SearchSongAsync()
         {
             _isSearching = true;
-            string json = await _network.Post(Network.SearchUrl, true);
+            string json = await _network.PostAsync(Network.SearchUrl, true);
             Debug.Log(json);
             SearchedResult result = JsonMapper.ToObject<SearchedResult>(json);
 
@@ -209,7 +209,7 @@ namespace InnerMediaPlayer.UI
                 Button addList = _songItems[i]._addList;
                 #region 下载歌曲封面并作为图片显示
 
-                Texture2D texture = await _network.GetTexture(song.al.picUrl, "param", "200y200");
+                Texture2D texture = await _network.GetTextureAsync(song.al.picUrl, "param", "200y200");
                 Image album = _songItems[i]._album;
                 if (texture != null)
                 {
@@ -305,18 +305,18 @@ namespace InnerMediaPlayer.UI
 
         private async void Play(int id,string songName,string artist,Sprite album)
         {
-            AudioClip clip = await _nowPlaying.GetAudioClip(id);
+            AudioClip clip = await _nowPlaying.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
             int disposedSongId = _nowPlaying.ForceAdd(id, songName, artist, clip, album);
-            _playingList.AddTask(disposedSongId, true,_nowPlaying.IterationList);
+            _playingList.AddTask(disposedSongId, true,_nowPlaying.IterationListAsync);
         }
 
         private async void AddToList(int id, string songName, string artist, Sprite album)
         {
-            AudioClip clip = await _nowPlaying.GetAudioClip(id);
+            AudioClip clip = await _nowPlaying.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
             _nowPlaying.AddToList(id, songName, artist, clip, album);
-            _playingList.AddTask(default, false,_nowPlaying.IterationList);
+            _playingList.AddTask(default, false,_nowPlaying.IterationListAsync);
         }
 
         private void ResetSongItem()

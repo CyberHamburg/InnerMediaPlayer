@@ -220,7 +220,7 @@ namespace InnerMediaPlayer.Logical
             currentLine._text.color = _playingColor;
         }
 
-        internal async Task DisplayLyric(int id,Lyric.Controller controller,CancellationToken token)
+        internal async Task DisplayLyricAsync(int id,Lyric.Controller controller,CancellationToken token)
         {
             List<Line> lyric = _lyrics[id].lines;
             foreach (Line line in lyric)
@@ -280,13 +280,13 @@ namespace InnerMediaPlayer.Logical
             }
         }
 
-        internal async Task InstantiateLyric(int id,Transform lyricContent,Lyric.Controller controller, Texture2D album)
+        internal async Task InstantiateLyricAsync(int id,Transform lyricContent,Lyric.Controller controller, Texture2D album)
         {
             if(_lyrics.ContainsKey(id))
                 return;
-            Cookies.Cookie cookie = await _cookies.GetCsrfToken();
+            Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
             LyricRequest lyricRequest = new LyricRequest(id, cookie.value);
-            string resultJson = await _network.Post(Network.LyricUrl, lyricRequest, true);
+            string resultJson = await _network.PostAsync(Network.LyricUrl, lyricRequest, true);
             LyricResult lyricResult = JsonMapper.ToObject<LyricResult>(resultJson);
             List<Line> lyric = PrepareData(lyricResult.lrc.lyric, lyricResult.tlyric?.lyric, lyricContent,controller);
             //二次验证，防止点击过快造成重复添加
