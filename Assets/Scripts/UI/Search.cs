@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
@@ -172,8 +173,8 @@ namespace InnerMediaPlayer.UI
         {
             _isSearching = true;
             string json = await _network.PostAsync(Network.SearchUrl, true);
-            Debug.Log(json);
             SearchedResult result = JsonMapper.ToObject<SearchedResult>(json);
+            Debug.Log(json);
 
             //重新搜索后重置SongItem状态
             ResetSongItem();
@@ -196,7 +197,7 @@ namespace InnerMediaPlayer.UI
             _searchedSongsCount = result.result.songCount;
 
             //对搜索结果进行相关度排序
-            SortByRelationship(result,_requestJsonData.s);
+            SortByRelationship(result, _requestJsonData.s);
 
             //对搜索到的结果实行对数据和ui的绑定
             for (int i = 0; i < result.result.songs.Count; i++)
@@ -256,51 +257,61 @@ namespace InnerMediaPlayer.UI
         /// <param name="requestString"></param>
         private void SortByRelationship(SearchedResult result,string requestString)
         {
-            int k = 0;
             List<SongsItem> songs = result.result.songs;
             string lower = requestString.ToLower();
-            for (int i = 1; i < songs.Count; i++)
+
+            //按照优先级排序
+            (int, int)[] indexArray = new (int, int)[songs.Count];
+            for (int i = 0; i < songs.Count; i++)
             {
+                //完全匹配优先级最高，则不考虑其他情况
                 if (lower.Equals(songs[i].name.ToLower()))
                 {
-                    (songs[i], songs[k]) = (songs[k], songs[i]);
-                    k++;
+                    indexArray[i] = (1, i);
                     continue;
                 }
-
-                List<ArItem> arItems = songs[i].ar;
-                foreach (ArItem arItem in arItems)
-                {
-                    if (!lower.Equals(arItem.name.ToLower()))
-                        continue;
-                    (songs[i], songs[k]) = (songs[k], songs[i]);
-                    k++;
-                    break;
-                }
-            }
-
-            if (k == songs.Count)
-                return;
-
-            for (int i = k + 1; i < songs.Count; i++)
-            {
+                //包含则优先级低些
                 if (songs[i].name.ToLower().Contains(lower))
-                {
-                    (songs[i], songs[k]) = (songs[k], songs[i]);
-                    k++;
-                    continue;
-                }
+                    indexArray[i] = (3, i);
 
                 List<ArItem> arItems = songs[i].ar;
+                //查找作者匹配度
                 foreach (ArItem arItem in arItems)
                 {
-                    if (!arItem.name.ToLower().Contains(lower)) 
-                        continue;
-                    (songs[i], songs[k]) = (songs[k], songs[i]);
-                    k++;
-                    break;
+                    if (lower.Equals(arItem.name.ToLower()))
+                    {
+                        indexArray[i] = (2, i);
+                        break;
+                    }
+                    if (arItem.name.ToLower().Contains(lower) && indexArray[i].Item1 == 0)
+                        indexArray[i] = (4, i);
+                }
+
+                if (indexArray[i].Item1 == 0)
+                    indexArray[i].Item2 = i;
+            }
+
+            int lastIndex = songs.Count - 1;
+            int startIndex = 0;
+            using IEnumerator<(int, int)> iEnumerator = indexArray.OrderBy(item => item.Item1).GetEnumerator();
+            List<SongsItem> songItems = new List<SongsItem>(songs);
+            //根据优先度排序
+            while (iEnumerator.MoveNext())
+            {
+                var (priority, index) = iEnumerator.Current;
+                if (priority == 0)
+                {
+                    songItems[lastIndex] = songs[index];
+                    lastIndex--;
+                }
+                else
+                {
+                    songItems[startIndex] = songs[index];
+                    startIndex++;
                 }
             }
+
+            result.result.songs = songItems;
         }
 
         private async void Play(int id,string songName,string artist,Sprite album)
