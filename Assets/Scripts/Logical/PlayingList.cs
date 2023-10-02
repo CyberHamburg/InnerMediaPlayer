@@ -101,11 +101,13 @@ namespace InnerMediaPlayer.Logical
 #if !UNITY_EDITOR
 					Debug.Log($"É¾³ýÁË{songName}");
 #endif
-                    _handledByEvent = true;
+                    if (song == PlayList.First.Value)
+                    {
+                        _audioSource.Stop();
+                        _handledByEvent = true;
+                    }
                     UIList.Remove(ui);
                     ui.Dispose();
-                    if (song == PlayList.First.Value)
-                        _audioSource.Stop();
                     PlayList.Remove(song);
                     song.Dispose();
                     disposeLyric(id);
@@ -291,11 +293,13 @@ namespace InnerMediaPlayer.Logical
 #if !UNITY_EDITOR
 					Debug.Log($"É¾³ýÁË{songName}");
 #endif
-                    _handledByEvent = true;
+                    if (song == PlayList.First.Value)
+                    {
+                        _audioSource.Stop();
+                        _handledByEvent = true;
+                    }
                     UIList.Remove(ui);
                     ui.Dispose();
-                    if (song == PlayList.First.Value)
-                        _audioSource.Stop();
                     PlayList.Remove(song);
                     song.Dispose();
                     disposeLyric(id);
