@@ -98,6 +98,9 @@ namespace InnerMediaPlayer.Logical
                 ui._delete.onClick.AddListener(Delete);
                 void Delete()
                 {
+#if !UNITY_EDITOR
+					Debug.Log($"删除了{songName}");
+#endif
                     _handledByEvent = true;
                     UIList.Remove(ui);
                     ui.Dispose();
@@ -151,6 +154,9 @@ namespace InnerMediaPlayer.Logical
                     LinkedListNode<UIElement> elementNode = UIList.Find(uiElement);
                     int targetIndex = FindIndex(UIList, uiElement);
                     int currentIndex = FindIndex(UIList, ui);
+#if !UNITY_EDITOR
+					Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
+#endif
 
                     int FindIndex<T>(LinkedList<T> list, T value)
                     {
@@ -282,6 +288,9 @@ namespace InnerMediaPlayer.Logical
 
                 void Delete()
                 {
+#if !UNITY_EDITOR
+					Debug.Log($"删除了{songName}");
+#endif
                     _handledByEvent = true;
                     UIList.Remove(ui);
                     ui.Dispose();
@@ -335,6 +344,9 @@ namespace InnerMediaPlayer.Logical
                     LinkedListNode<UIElement> elementNode = UIList.Find(uiElement);
                     int targetIndex = FindIndex(UIList, uiElement);
                     int currentIndex = FindIndex(UIList, ui);
+#if !UNITY_EDITOR
+					Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
+#endif
 
                     int FindIndex<T>(LinkedList<T> list, T value)
                     {
@@ -461,6 +473,7 @@ namespace InnerMediaPlayer.Logical
                 _audioSource.UnPause();
                 Pause = false;
             }
+			Debug.Log($"当前播放状态是{Pause}");
             return Pause;
         }
 
@@ -471,6 +484,7 @@ namespace InnerMediaPlayer.Logical
         {
             if (PlayList.Count < 2)
                 return;
+			Debug.Log("点击了下一曲");
             _audioSource.Stop();
             _isClickedNextSong = true;
         }
@@ -482,6 +496,7 @@ namespace InnerMediaPlayer.Logical
         {
             if (PlayList.Count < 2)
                 return;
+			Debug.Log("点击了上一曲");
             _audioSource.Stop();
             _isClickedNextSong = false;
         }
@@ -501,10 +516,12 @@ namespace InnerMediaPlayer.Logical
         {
             #region Log
 
+			Debug.Log("------分割线------");
             foreach (Song song in PlayList)
             {
                 Debug.Log(song._songName);
             }
+			Debug.Log("------分割线------\n");
 
             #endregion
 
@@ -580,6 +597,20 @@ namespace InnerMediaPlayer.Logical
 
                 _handledByEvent = false;
                 _isClickedNextSong = true;
+#if !UNITY_EDITOR
+                Debug.Log("------OnceOperation------");
+                using IEnumerator<Song> songs = PlayList.GetEnumerator();
+                LinkedListNode<UIElement> uis = UIList.First;
+                while (songs.MoveNext())
+                {
+                    bool isMatch = uis.Value._id == songs.Current._id;
+                    Debug.Log(isMatch
+                        ? $"{songs.Current._songName}，此条目匹配"
+                        : $"不匹配，Playlist的条目为{songs.Current._songName}，UIList的条目为{uis.Value._element.Find("Play/Song").GetComponent<Text>().text}");
+                    uis = uis.Next;
+                }
+                Debug.Log("------OnceOperation------");
+#endif
                 currentPlaying = PlayList.First;
                 updateUI(currentPlaying?.Value);
             }
@@ -590,7 +621,9 @@ namespace InnerMediaPlayer.Logical
             //由歌曲获取到歌曲详情，包括播放的url
             string json = await _network.GetAsync(Network.SongUrl, false, "id", id.ToString(), "ids", $"[{id}]", "br",
                 "999000");
+#if UNITY_EDITOR
             Debug.Log(json);
+#endif
             SongResult songResult = JsonMapper.ToObject<SongResult>(json);
             DataItem item = songResult.data[0];
             AudioClip clip = await _network.GetAudioClipAsync(item.url, item.md5, AudioType.MPEG);
