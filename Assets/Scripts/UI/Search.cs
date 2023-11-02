@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
@@ -17,7 +18,7 @@ using Network = InnerMediaPlayer.Tools.Network;
 
 namespace InnerMediaPlayer.UI
 {
-    public class Search : UIViewerBase
+    internal class Search : UIViewerBase
     {
         private bool _isSearching;
         private Network _network;

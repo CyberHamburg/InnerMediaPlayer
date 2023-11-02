@@ -14,7 +14,7 @@ using Network = InnerMediaPlayer.Tools.Network;
 
 namespace InnerMediaPlayer.UI
 {
-    public class Login : UIViewerBase
+    internal class Login : UIViewerBase
     {
         private Button _qrLogin;
         private Image _qrCode;
