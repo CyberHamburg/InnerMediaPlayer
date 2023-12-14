@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
@@ -15,6 +16,8 @@ using UnityEngine.UI;
 using Zenject;
 using Debug = UnityEngine.Debug;
 using Network = InnerMediaPlayer.Tools.Network;
+
+#pragma warning disable IDE0051
 
 namespace InnerMediaPlayer.UI
 {
@@ -36,7 +39,10 @@ namespace InnerMediaPlayer.UI
         private Lyric _lyric;
         private NowPlaying _nowPlaying;
         private SongDetail[] _songItems;
-        private TaskQueue<int,bool> _playingList;
+        private TaskQueue<int,bool> _iterateSongListTaskQueue;
+        private TaskQueue _searchTaskQueue;
+        //拼接歌手字符串需要
+        private StringBuilder _expansion;
         private float _currentPageDistance;
         private int _searchedSongsCount;
 
@@ -46,13 +52,20 @@ namespace InnerMediaPlayer.UI
         private const float TurnThePageDistance = 350f;
 
         [Inject]
-        private void Initialized(Network network,PrefabManager prefabManager,Crypto crypto,Cookies cookies,TaskQueue<int,bool> playingList)
+        private void Initialized(Network network, PrefabManager prefabManager, Crypto crypto, Cookies cookies,
+            TaskQueue<int, bool> playingList, TaskQueue searchTaskQueue)
         {
             _network = network;
             _prefabManager = prefabManager;
             _crypto = crypto;
             _cookies = cookies;
-            _playingList = playingList;
+            _iterateSongListTaskQueue = playingList;
+            _searchTaskQueue = searchTaskQueue;
+        }
+
+        private void Awake()
+        {
+            _expansion = new StringBuilder(35);
         }
 
         private async void Start()
@@ -116,7 +129,7 @@ namespace InnerMediaPlayer.UI
         /// 自动翻页的实现
         /// </summary>
         /// <param name="eventData"></param>
-        private async void JudgeIfTurnThePage(BaseEventData eventData)
+        private void JudgeIfTurnThePage(BaseEventData eventData)
         {
             //向上delta为负，所以用负值判断翻上一页
             if (-_currentPageDistance > TurnThePageDistance)
@@ -131,7 +144,7 @@ namespace InnerMediaPlayer.UI
                 _requestJsonData.offset = (--page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
                 _network.UpdateFormData(Network.Params, encryptRequestData);
-                await SearchSongAsync();
+                _searchTaskQueue.AddTask(SearchSongAsync);
             }
             //下一页
             else if (_currentPageDistance > TurnThePageDistance)
@@ -146,7 +159,7 @@ namespace InnerMediaPlayer.UI
                 _requestJsonData.offset = (++page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
                 _network.UpdateFormData(Network.Params, encryptRequestData);
-                await SearchSongAsync();
+                _searchTaskQueue.AddTask(SearchSongAsync);
             }
         }
 
@@ -154,7 +167,7 @@ namespace InnerMediaPlayer.UI
         /// 当搜索框结束编辑时生成搜索需要的数据并搜索
         /// </summary>
         /// <param name="str">结束编辑时的字符串</param>
-        private async void SearchAndDisplay(string str)
+        private void SearchAndDisplay(string str)
         {
             if (string.IsNullOrEmpty(str))
                 return;
@@ -167,15 +180,17 @@ namespace InnerMediaPlayer.UI
             string unescapedString = System.Text.RegularExpressions.Regex.Unescape(unencryptedString);
             string encrypt = _crypto.Encrypt(unescapedString);
             _network.UpdateFormData(Network.Params, encrypt);
-            await SearchSongAsync();
+            _searchTaskQueue.AddTask(SearchSongAsync);
         }
 
-        private async Task SearchSongAsync()
+        private async Task SearchSongAsync(CancellationToken token)
         {
             _isSearching = true;
             string json = await _network.PostAsync(Network.SearchUrl, true);
             SearchedResult result = JsonMapper.ToObject<SearchedResult>(json);
+#if UNITY_DEBUG
             Debug.Log(json);
+#endif
 
             //重新搜索后重置SongItem状态
             ResetSongItem();
@@ -184,16 +199,14 @@ namespace InnerMediaPlayer.UI
             {
                 throw new HttpRequestException($"返回的状态码{result.code}不正确,检查网络问题");
             }
-            //如果搜索到是一些违禁词的话，提示为空并返回结果
-            if (result.result == null)
+            //如果搜索到是一些屏蔽词或者没有搜索结果的话，提示为空并返回结果
+            if (result.result?.songs == null)
             {
                 _nullSongResult.transform.SetAsFirstSibling();
                 _nullSongResult.SetActive(true);
                 return;
             }
-            //搜索结果为空的话就返回空
-            if (result.result.songs == null)
-                return;
+
             //对搜索到的歌曲数量计数
             _searchedSongsCount = result.result.songCount;
 
@@ -221,17 +234,25 @@ namespace InnerMediaPlayer.UI
 
                 #endregion
 
+                //如果有新搜索动作产生则取消原搜索动作
+                if (token.IsCancellationRequested)
+                    return;
+
                 bool canPlay = song.privilege.freeTrialPrivilege.cannotListenReason == null &&
                                song.privilege.freeTrialPrivilege.resConsumable == false;
                 #region 向UI赋值歌名和作家
 
                 songName.text = song.name;
                 artist.text = string.Empty;
-                for (int j = 0; j < song.ar.Count; j++)
+                _expansion.Clear();
+                foreach (ArItem arItem in song.ar)
                 {
-                    artist.text += song.ar[j].name + ",";
+                    _expansion.Append(arItem.name);
+                    _expansion.Append(',');
                 }
-                artist.text = artist.text.Remove(artist.text.Length - 1, 1);
+
+                _expansion.Remove(_expansion.Length - 1, 1);
+                artist.text = _expansion.ToString();
 
                 #endregion
 
@@ -320,7 +341,7 @@ namespace InnerMediaPlayer.UI
             AudioClip clip = await _nowPlaying.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
             int disposedSongId = _nowPlaying.ForceAdd(id, songName, artist, clip, album);
-            _playingList.AddTask(disposedSongId, true,_nowPlaying.IterationListAsync);
+            _iterateSongListTaskQueue.AddTask(disposedSongId, true,_nowPlaying.IterationListAsync);
         }
 
         private async void AddToList(int id, string songName, string artist, Sprite album)
@@ -328,7 +349,7 @@ namespace InnerMediaPlayer.UI
             AudioClip clip = await _nowPlaying.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
             _nowPlaying.AddToList(id, songName, artist, clip, album);
-            _playingList.AddTask(default, false,_nowPlaying.IterationListAsync);
+            _iterateSongListTaskQueue.AddTask(default, false,_nowPlaying.IterationListAsync);
         }
 
         private void ResetSongItem()
