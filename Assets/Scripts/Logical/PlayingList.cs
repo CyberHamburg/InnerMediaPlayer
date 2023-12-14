@@ -7,7 +7,7 @@ using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Management;
 using InnerMediaPlayer.Management.UI;
 using InnerMediaPlayer.Models;
-using InnerMediaPlayer.Tools;
+using InnerMediaPlayer.Models.Signal;
 using LitJson;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -18,6 +18,8 @@ using Object = UnityEngine.Object;
 // ReSharper disable PossibleNullReferenceException
 // ReSharper disable AssignNullToNotNullAttribute
 
+#pragma warning disable IDE0041
+
 namespace InnerMediaPlayer.Logical
 {
     internal class PlayingList:IInitializable,IDisposable
@@ -26,22 +28,26 @@ namespace InnerMediaPlayer.Logical
         private readonly Network _network;
         private readonly Song.Factory _songFactory;
         private readonly UIElement.Factory _uiFactory;
-        private readonly TaskQueue<int,CancellationToken> _taskQueue;
         private readonly UIManager _uiManager;
         private readonly PrefabManager _prefabManager;
+        private readonly SignalBus _signal;
 
-        //拖拽时临时动画
+        /// <summary>
+        /// 拖拽时临时动画
+        /// </summary>
         private UIElement _virtualQueueItem;
+        private Canvas _canvas;
         /// <summary>
         /// 不同分辨率下，move拖拽点距离ui中心的距离
         /// </summary>
         private Vector3 _distance;
-        private Canvas _canvas;
 
         /// <summary>
         /// 默认为true，真为下一曲，假为上一曲
         /// </summary>
+        private bool _whetherToPlaySequentially;
         private bool _isClickedNextSong;
+        private bool _isClickedPreviousSong;
 
         /// <summary>
         /// true为由事件决定链表与ui顺序的处理，false为遍历列表时决定
@@ -50,12 +56,25 @@ namespace InnerMediaPlayer.Logical
 
         internal bool Pause { get; private set; }
 
+        internal float CurrentTime => _audioSource.clip == null ? default : _audioSource.time;
+
+        internal float TotalTime => _audioSource.clip == null ? default : _audioSource.clip.length;
+
+        internal float? AlreadyPlayedRate
+        {
+            get
+            {
+                if (_audioSource.clip == null)
+                    return null;
+                return Mathf.Clamp01((float) _audioSource.timeSamples / _audioSource.clip.samples);
+            }
+        }
+
         private LinkedList<Song> PlayList { get; }
         private LinkedList<UIElement> UIList { get; }
 
         internal PlayingList(AudioSource audioSource, Network network, Song.Factory songFactory,
-            UIElement.Factory uiFactory, TaskQueue<int, CancellationToken> taskQueue, UIManager uiManager,
-            PrefabManager prefabManager)
+            UIElement.Factory uiFactory, UIManager uiManager, PrefabManager prefabManager, SignalBus signal)
         {
             PlayList = new LinkedList<Song>();
             UIList = new LinkedList<UIElement>();
@@ -63,10 +82,10 @@ namespace InnerMediaPlayer.Logical
             _network = network;
             _songFactory = songFactory;
             _uiFactory = uiFactory;
-            _taskQueue = taskQueue;
             _uiManager = uiManager;
             _prefabManager = prefabManager;
-            _isClickedNextSong = true;
+            _whetherToPlaySequentially = true;
+            _signal = signal;
         }
 
         public void Initialize()
@@ -98,13 +117,14 @@ namespace InnerMediaPlayer.Logical
                 ui._delete.onClick.AddListener(Delete);
                 void Delete()
                 {
-#if !UNITY_EDITOR
-					Debug.Log($"删除了{songName}");
+#if !UNITY_EDITOR && UNITY_DEBUG
+                    Debug.Log($"删除了{songName}");
 #endif
                     if (song == PlayList.First.Value)
                     {
                         _audioSource.Stop();
                         _handledByEvent = true;
+                        _audioSource.clip = null;
                     }
                     UIList.Remove(ui);
                     ui.Dispose();
@@ -124,7 +144,7 @@ namespace InnerMediaPlayer.Logical
                     Vector3 position = RectTransformUtility.PixelAdjustPoint(pointer.position, ui._element, _canvas);
                     position = uiContent.InverseTransformPoint(position + _distance);
                     _virtualQueueItem._element.localPosition = position;
-					_virtualQueueItem._element.anchoredPosition += uiContent.anchoredPosition;
+                    _virtualQueueItem._element.anchoredPosition += uiContent.anchoredPosition;
                 }
 
                 void BeginDrag(BaseEventData eventData)
@@ -156,8 +176,8 @@ namespace InnerMediaPlayer.Logical
                     LinkedListNode<UIElement> elementNode = UIList.Find(uiElement);
                     int targetIndex = FindIndex(UIList, uiElement);
                     int currentIndex = FindIndex(UIList, ui);
-#if !UNITY_EDITOR
-					Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
+#if !UNITY_EDITOR && UNITY_DEBUG
+                    Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
 #endif
 
                     int FindIndex<T>(LinkedList<T> list, T value)
@@ -252,8 +272,10 @@ namespace InnerMediaPlayer.Logical
                 ui._element.SetAsLastSibling();
                 UIList.AddLast(ui);
             }
+#if UNITY_DEBUG
             else
                 Debug.Log($"歌曲名:{songName}已经被添加过");
+#endif
         }
 
         /// <summary>
@@ -290,13 +312,14 @@ namespace InnerMediaPlayer.Logical
 
                 void Delete()
                 {
-#if !UNITY_EDITOR
-					Debug.Log($"删除了{songName}");
+#if !UNITY_EDITOR && UNITY_DEBUG
+                    Debug.Log($"删除了{songName}");
 #endif
                     if (song == PlayList.First.Value)
                     {
                         _audioSource.Stop();
                         _handledByEvent = true;
+                        _audioSource.clip = null;
                     }
                     UIList.Remove(ui);
                     ui.Dispose();
@@ -348,8 +371,8 @@ namespace InnerMediaPlayer.Logical
                     LinkedListNode<UIElement> elementNode = UIList.Find(uiElement);
                     int targetIndex = FindIndex(UIList, uiElement);
                     int currentIndex = FindIndex(UIList, ui);
-#if !UNITY_EDITOR
-					Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
+#if !UNITY_EDITOR && UNITY_DEBUG
+                    Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
 #endif
 
                     int FindIndex<T>(LinkedList<T> list, T value)
@@ -477,7 +500,9 @@ namespace InnerMediaPlayer.Logical
                 _audioSource.UnPause();
                 Pause = false;
             }
-			Debug.Log($"当前播放状态是{Pause}");
+#if UNITY_DEBUG
+            Debug.Log($"当前状态是{(Pause ? "播放中" : "暂停中")}");
+#endif
             return Pause;
         }
 
@@ -488,9 +513,12 @@ namespace InnerMediaPlayer.Logical
         {
             if (PlayList.Count < 2)
                 return;
-			Debug.Log("点击了下一曲");
+#if UNITY_DEBUG
+            Debug.Log("点击了下一曲");
+#endif
             _audioSource.Stop();
             _isClickedNextSong = true;
+            _whetherToPlaySequentially = true;
         }
 
         /// <summary>
@@ -500,34 +528,49 @@ namespace InnerMediaPlayer.Logical
         {
             if (PlayList.Count < 2)
                 return;
-			Debug.Log("点击了上一曲");
+#if UNITY_DEBUG
+            Debug.Log("点击了上一曲");
+#endif
             _audioSource.Stop();
-            _isClickedNextSong = false;
+            _isClickedPreviousSong = true;
+            _whetherToPlaySequentially = false;
+        }
+
+        internal void ProcessAdjustment(float value)
+        {
+            if (_audioSource.clip == null)
+                return;
+            //这里用1会因为精度问题不会准确定位到歌曲结尾，所以用0.999近似代替
+            _audioSource.timeSamples = Mathf.RoundToInt(Mathf.Clamp(value, 0.000f, 0.999f) * _audioSource.clip.samples);
         }
 
         /// <summary>
         /// 遍历当前播放列表，新加入歌曲后则重新被调用
         /// </summary>
         /// <param name="updateUI">更新最下方播放栏的ui方法</param>
-        /// <param name="updateLyric">更新歌词的方法</param>
         /// <param name="disposeLyric">将歌词返回内存池的方法</param>
         /// <param name="disableLyric">暂时隐藏歌词的方法</param>
         /// <param name="disposedSongId">要销毁的歌曲id</param>
         /// <param name="stopByForce">是否被强制停止播放</param>
+        /// <param name="lyricDisplaySignal"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task IterationListAsync(Action<Song> updateUI,Func<int,CancellationToken,Task> updateLyric,Action<int> disposeLyric,Action<int> disableLyric,int disposedSongId, bool stopByForce, CancellationToken token)
+        internal async Task IterationListAsync(Action<Song> updateUI, Action<int> disposeLyric,
+            Action<int> disableLyric, int disposedSongId, bool stopByForce, LyricDisplaySignal lyricDisplaySignal,
+            CancellationToken token)
         {
+#if UNITY_DEBUG
             #region Log
 
-			Debug.Log("------分割线------");
+            Debug.Log("------分割线------");
             foreach (Song song in PlayList)
             {
-                Debug.Log(song._songName);
+                Debug.Log((song._id, song._songName));
             }
-			Debug.Log("------分割线------\n");
+            Debug.Log("------分割线------\n");
 
             #endregion
+#endif
 
             LinkedListNode<Song> currentPlaying = PlayList.First;
             //判断是否需要移除歌词
@@ -539,6 +582,8 @@ namespace InnerMediaPlayer.Logical
                 switch (stopByForce)
                 {
                     case true:
+                        //重置时间，否则会导致不从开始播放
+                        _audioSource.timeSamples = default;
                         Play();
                         break;
                     case false when !_audioSource.isPlaying:
@@ -551,7 +596,8 @@ namespace InnerMediaPlayer.Logical
                 {
                     _audioSource.clip = currentPlaying.Value._audioClip;
                     updateUI(currentPlaying.Value);
-                    _taskQueue.AddTask(currentPlaying.Value._id, updateLyric);
+                    lyricDisplaySignal.Param1 = currentPlaying.Value._id;
+                    _signal.FireId("Normal", lyricDisplaySignal);
                     _audioSource.Play();
                 }
 
@@ -561,25 +607,31 @@ namespace InnerMediaPlayer.Logical
                     await Task.Yield();
                     if (token.IsCancellationRequested || !Application.isPlaying)
                         return;
+                    if(_isClickedNextSong || _isClickedPreviousSong)
+                        break;
                 }
 
+                //重置时间，否则会导致不从开始播放
+                _audioSource.timeSamples = default;
                 //播放完一首歌后或被歌曲中断后隐藏当前歌词，为下一首歌准备
                 disableLyric(currentPlaying.Value._id);
                 //歌曲被中断后重置pause状态
                 Pause = false;
                 if(!_handledByEvent)
                     //判断播放前一首歌还是下一首歌
-                    switch (_isClickedNextSong)
+                    switch (_whetherToPlaySequentially)
                     {
                         case true:
                             MoveNodeToLast(PlayList.First, PlayList);
                             UIList.First?.Value._element.SetAsLastSibling();
                             MoveNodeToLast(UIList.First, UIList);
+                            _isClickedNextSong = false;
                             break;
                         case false:
                             MoveNodeToFirst(PlayList.Last, PlayList);
                             UIList.Last?.Value._element.SetAsFirstSibling();
                             MoveNodeToFirst(UIList.Last, UIList);
+                            _isClickedPreviousSong = false;
                             break;
                     }
 
@@ -600,8 +652,8 @@ namespace InnerMediaPlayer.Logical
                 }
 
                 _handledByEvent = false;
-                _isClickedNextSong = true;
-#if !UNITY_EDITOR
+                _whetherToPlaySequentially = true;
+#if !UNITY_EDITOR && UNITY_DEBUG
                 Debug.Log("------OnceOperation------");
                 using IEnumerator<Song> songs = PlayList.GetEnumerator();
                 LinkedListNode<UIElement> uis = UIList.First;
@@ -625,7 +677,7 @@ namespace InnerMediaPlayer.Logical
             //由歌曲获取到歌曲详情，包括播放的url
             string json = await _network.GetAsync(Network.SongUrl, false, "id", id.ToString(), "ids", $"[{id}]", "br",
                 "999000");
-#if UNITY_EDITOR
+#if UNITY_EDITOR && UNITY_DEBUG
             Debug.Log(json);
 #endif
             SongResult songResult = JsonMapper.ToObject<SongResult>(json);
@@ -747,13 +799,11 @@ namespace InnerMediaPlayer.Logical
                 _element.gameObject.SetActive(false);
                 _element.SetAsLastSibling();
                 _delete.onClick.RemoveAllListeners();
-                if (_delete.TryGetComponent(out EventTrigger eventTrigger))
+                foreach (EventTrigger.Entry entry in _eventTrigger.triggers)
                 {
-                    foreach (EventTrigger.Entry entry in eventTrigger.triggers)
-                    {
-                        entry.callback.RemoveAllListeners();
-                    }
+                    entry.callback.RemoveAllListeners();
                 }
+
                 _id = default;
                 _songName.text = null;
                 _artist.text = null;
