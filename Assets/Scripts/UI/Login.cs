@@ -57,7 +57,14 @@ namespace InnerMediaPlayer.UI
 
                 #endregion
 
-                gameObject.SetActive(false);
+                try
+                {
+                    gameObject.SetActive(false);
+                }
+                catch (MissingReferenceException)
+                {
+                    
+                }
             }
         }
 
@@ -108,7 +115,7 @@ namespace InnerMediaPlayer.UI
                 await _cookies.SaveToFileAsync();
             }
             _qrCode.gameObject.SetActive(false);
-            await new WaitForSeconds(2f);
+            await new WaitForSeconds(1f);
             _qrState.gameObject.SetActive(false);
             await new WaitForSeconds(1f);
             gameObject.SetActive(false);
