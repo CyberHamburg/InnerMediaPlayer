@@ -1,6 +1,7 @@
 using InnerMediaPlayer.Logical;
 using InnerMediaPlayer.Management;
 using InnerMediaPlayer.Management.UI;
+using InnerMediaPlayer.Models.Signal;
 using InnerMediaPlayer.Tools;
 using LitJson.Extension;
 using UnityEngine;
@@ -15,6 +16,9 @@ namespace InnerMediaPlayer.Installer
         public override void InstallBindings()
         {
             SignalBusInstaller.Install(Container);
+            //懒得再写一个枚举了\-.-/
+            Container.DeclareSignalWithInterfaces<LyricDisplaySignal>().WithId("Normal");
+            Container.DeclareSignalWithInterfaces<LyricInterruptDisplaySignal>().WithId("Interruption");
 
             Container.BindInterfacesAndSelfTo<JsonRegister>().AsSingle();
             Container.Bind<Crypto>().ToSelf().AsSingle();
@@ -28,7 +32,7 @@ namespace InnerMediaPlayer.Installer
             Container.BindInterfacesAndSelfTo<PlayingList>().AsSingle();
             Container.BindInterfacesAndSelfTo<PrefabManager>().AsSingle();
 
-            Container.BindFactory<float, string, Transform, Lyrics.Line, Lyrics.Line.Factory>()
+            Container.BindFactory<float, string, Color, Transform, Lyrics.Line, Lyrics.Line.Factory>()
                 .FromPoolableMemoryPool(x => x.WithInitialSize(30));
             Container.BindFactory<int, string, string, AudioClip, Sprite, PlayingList.Song, PlayingList.Song.Factory>()
                 .FromPoolableMemoryPool();
@@ -36,6 +40,8 @@ namespace InnerMediaPlayer.Installer
                 .FromPoolableMemoryPool();
 
             Container.BindInterfacesAndSelfTo<UIManager>().AsSingle();
+            Container.Bind<CoroutineQueue>().FromNewComponentOnNewGameObject()
+                .WithGameObjectName(nameof(CoroutineQueue)).AsTransient();
 
             Container.BindExecutionOrder<UIManager>(-100);
             Container.BindExecutionOrder<JsonRegister>(-200);

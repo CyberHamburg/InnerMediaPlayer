@@ -126,6 +126,9 @@ namespace InnerMediaPlayer.Logical
                 this.value = value;
             }
 
+            /// <summary>
+            /// LitJson创建对象时使用不能删
+            /// </summary>
             public Cookie()
             {
 

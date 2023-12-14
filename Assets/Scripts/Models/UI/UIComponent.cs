@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using UnityEngine;
 
+#pragma warning disable CS0168
+
 namespace InnerMediaPlayer.Models.UI
 {
     public struct UIComponent<T> where T : Component
@@ -29,7 +31,7 @@ namespace InnerMediaPlayer.Models.UI
             }
             catch (ArgumentException a)
             {
-#if UNITY_EDITOR
+#if UNITY_EDITOR && UNITY_DEBUG
                 Debug.Log(a.Message);
 #endif
                 var tempUIComponent = (UIComponent<T>)collection[key];
@@ -58,7 +60,7 @@ namespace InnerMediaPlayer.Models.UI
             }
             catch (ArgumentException e)
             {
-#if UNITY_EDITOR
+#if UNITY_EDITOR && UNITY_DEBUG
                 Debug.Log(e.Message);
 #endif
                 var tempUIComponent = (UIComponent)collection[uiComponent.UIName];

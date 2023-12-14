@@ -9,7 +9,7 @@ namespace InnerMediaPlayer.Models.Search
         /// </summary>
         public string s { get; set; }
         /// <summary>
-        /// 
+        /// 需要搜索什么类型的数据，默认1为歌曲
         /// </summary>
         public string type { get; set; }
         /// <summary>
@@ -17,7 +17,8 @@ namespace InnerMediaPlayer.Models.Search
         /// </summary>
         public bool queryCorrect { get; set; }
         /// <summary>
-        /// 
+        /// <para>前面有多少元素</para>
+        /// <para>搭配<see cref="limit"/>可得知当前页数</para>
         /// </summary>
         public string offset { get; set; }
         /// <summary>
@@ -25,7 +26,7 @@ namespace InnerMediaPlayer.Models.Search
         /// </summary>
         public string total { get; set; }
         /// <summary>
-        /// 
+        /// 最多一次返回多少数据
         /// </summary>
         public string limit { get; set; }
         /// <summary>

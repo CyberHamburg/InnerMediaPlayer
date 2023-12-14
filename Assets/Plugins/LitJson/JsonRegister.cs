@@ -9,7 +9,7 @@ namespace LitJson.Extension
         {
 #if !UNITY_EDITOR
             JsonExtension.Registered();
-#else
+#elif UNITY_DEBUG
             Debug.Log("ÔÚ±à¼­Æ÷×¢²á");
 #endif
         }

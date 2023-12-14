@@ -5,7 +5,8 @@
         "GUID:a6c0cb996f830e5488ccbb6b7d56e125",
         "GUID:796c6303b5dc9344fb75682dcfeed10f",
         "GUID:06ca3798d35b78d4bbc277a5d0b1c59d",
-        "GUID:0d8beb7f090555447a6cf5ce9e54dbb4"
+        "GUID:0d8beb7f090555447a6cf5ce9e54dbb4",
+        "GUID:6055be8ebefd69e48b49212b09b47b2f"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -18,7 +19,9 @@
         "Zenject-usage.dll"
     ],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "UNITY_DEBUG"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }
