@@ -255,7 +255,14 @@ namespace InnerMediaPlayer.Base
         /// <param name="action">»Øµ÷Î¯ÍÐ</param>
         internal static void AddEventTriggerInterface(GameObject go, EventTriggerType triggerType, UnityAction<BaseEventData> action)
         {
-            EventTrigger trigger = go.AddComponent<EventTrigger>();
+            switch (go.TryGetComponent(out EventTrigger trigger))
+            {
+                case true:
+                    break;
+                case false:
+                    trigger = go.AddComponent<EventTrigger>();
+                    break;
+            }
             EventTrigger.Entry entry = new EventTrigger.Entry {eventID = triggerType, callback = new EventTrigger.TriggerEvent()};
             entry.callback.AddListener(action);
             trigger.triggers.Add(entry);
