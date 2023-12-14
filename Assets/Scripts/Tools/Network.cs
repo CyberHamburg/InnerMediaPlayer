@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -174,6 +175,13 @@ namespace InnerMediaPlayer.Tools
             if (!(unityWebRequest.downloadHandler is DownloadHandlerAudioClip downloadHandlerAudioClip)) 
                 return null;
             downloadHandlerAudioClip.streamAudio = true;
+
+            #region Test
+
+            //DownloadToDesktop(downloadHandlerAudioClip, md5);
+
+            #endregion
+
             return downloadHandlerAudioClip.audioClip;
         }
 
@@ -217,6 +225,17 @@ namespace InnerMediaPlayer.Tools
             uriBuilder.Query = stringBuilder.ToString();
 
             return uriBuilder.Uri;
+        }
+
+        private async void DownloadToDesktop(DownloadHandlerAudioClip downloadHandler, string fileName)
+        {
+            const string fileExtension = ".mp3";
+            string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            string filePath = Path.Combine(folderPath, fileName + fileExtension);
+            if(File.Exists(filePath))
+                return;
+            using FileStream fileStream = File.Create(filePath, downloadHandler.data.Length);
+            await fileStream.WriteAsync(downloadHandler.data, 0, downloadHandler.data.Length);
         }
 
         private void SetRequestHeaders(UnityWebRequest unityWebRequest, bool needCookies)
