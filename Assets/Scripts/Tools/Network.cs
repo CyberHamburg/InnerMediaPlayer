@@ -8,6 +8,8 @@ using InnerMediaPlayer.Logical;
 using UnityEngine;
 using UnityEngine.Networking;
 
+#pragma warning disable IDE0051
+
 namespace InnerMediaPlayer.Tools
 {
     internal class Network

@@ -12,6 +12,8 @@ using UnityEngine.UI;
 using Zenject;
 using Network = InnerMediaPlayer.Tools.Network;
 
+#pragma warning disable IDE0051
+
 namespace InnerMediaPlayer.UI
 {
     internal class Login : UIViewerBase

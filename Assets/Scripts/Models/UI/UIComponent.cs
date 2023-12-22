@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
+#pragma warning disable IDE0079
 #pragma warning disable CS0168
 
 namespace InnerMediaPlayer.Models.UI
