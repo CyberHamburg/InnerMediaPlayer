@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Models.Signal;
 using UnityEngine;
@@ -71,6 +69,23 @@ namespace InnerMediaPlayer.UI
             _nextSongButton.onClick.AddListener(Next);
             _previousSongButton.onClick.AddListener(Previous);
 
+            #region 本地函数
+
+            void LyricSwitchControl() => _lyric.gameObject.SetActive(!_lyric.gameObject.activeSelf);
+            void PlayListSwitchControl() => _playList.gameObject.SetActive(true);
+            void PlayOrPause()
+            {
+                bool? isPause = _playList.PlayOrPause();
+                if (isPause == null)
+                    return;
+                _pauseButton.gameObject.SetActive(!isPause.Value);
+                _playButton.gameObject.SetActive(isPause.Value);
+            }
+            void Next() => _playList.Next();
+            void Previous() => _playList.Previous();
+
+            #endregion
+
             AddEventTriggerInterface(_processBar.gameObject, EventTriggerType.BeginDrag, BeginDrag);
             AddEventTriggerInterface(_processBar.gameObject, EventTriggerType.EndDrag, EndDrag);
             //当鼠标按下或结束拖动时则重新分配进度
@@ -120,19 +135,6 @@ namespace InnerMediaPlayer.UI
 #if UNITY_DEBUG
             Debug.Log($"拖动后时间为{_processTimer.text}");
 #endif
-        }
-
-        private void Next() => _playList.Next();
-
-        private void Previous() => _playList.Previous();
-
-        private void PlayOrPause()
-        {
-            bool? isPause = _playList.PlayOrPause();
-            if (isPause == null)
-                return;
-            _pauseButton.gameObject.SetActive(!isPause.Value);
-            _playButton.gameObject.SetActive(isPause.Value);
         }
 
         /// <summary>
@@ -190,23 +192,6 @@ namespace InnerMediaPlayer.UI
             _processTimer.text = _timeLineBuilder.ToString();
         }
 
-        private void PlayListSwitchControl() => _playList.gameObject.SetActive(true);
-
-        private void LyricSwitchControl() => _lyric.gameObject.SetActive(!_lyric.gameObject.activeSelf);
-
-        internal Task<AudioClip> GetAudioClipAsync(int id) => _playList.GetAudioClipAsync(id);
-
-        internal Task IterationListAsync(int disposedSongId, bool stopByForce, CancellationToken token) =>
-            _playList.IterationListAsync(UpdateUI, _lyric.Dispose, _lyric.Disable, disposedSongId, stopByForce,
-                _lyric.LyricDisplaySignal, token);
-
-        internal int ForceAdd(int id, string songName, string artist, AudioClip audioClip, Sprite album) =>
-            _playList.ForceAdd(id, songName, artist, audioClip, album, _playList.ScrollRect.content, _lyric.Dispose);
-
-
-        internal void AddToList(int id, string songName, string artist, AudioClip audioClip, Sprite album) =>
-            _playList.AddToList(id, songName, artist, audioClip, album, _playList.ScrollRect.content, _lyric.Dispose);
-
         private IEnumerator UpdateUIPerSecond()
         {
             while (Application.isPlaying)
@@ -247,7 +232,7 @@ namespace InnerMediaPlayer.UI
             _processBackground.enabled = flag;
         }
 
-        private void UpdateUI(Logical.PlayingList.Song song)
+        internal void UpdateUI(Logical.PlayingList.Song song)
         {
             if (song == null)
             {
