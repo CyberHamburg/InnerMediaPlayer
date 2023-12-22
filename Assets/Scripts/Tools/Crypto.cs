@@ -13,8 +13,11 @@ namespace InnerMediaPlayer.Tools
         internal string _encSecKey;
         internal const string LastKeyString = "YpG1fbxNTQXjldXE";
 
+        private readonly StringBuilder _md5StringBuilder;
+
         internal Crypto()
         {
+            _md5StringBuilder = new StringBuilder(40);
             iv = Encoding.UTF8.GetBytes("0102030405060708");
             firstKey = Encoding.UTF8.GetBytes("0CoJUm6Qyw8W8jud");
             lastKey = Encoding.UTF8.GetBytes(LastKeyString);
@@ -58,12 +61,12 @@ namespace InnerMediaPlayer.Tools
         {
             MD5 computeMD5 = MD5.Create();
             byte[] result = computeMD5.ComputeHash(data);
-            StringBuilder stringBuilder = new StringBuilder(40);
-            for (int i = 0; i < result.Length; i++)
+            _md5StringBuilder.Clear();
+            foreach (byte hash in result)
             {
-                stringBuilder.Append(result[i].ToString("x2"));
+                _md5StringBuilder.Append(hash.ToString("x2"));
             }
-            return stringBuilder.ToString().Equals(md5);
+            return _md5StringBuilder.ToString().Equals(md5);
         }
     }
 

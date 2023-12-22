@@ -25,6 +25,10 @@ namespace InnerMediaPlayer.Logical
         private readonly Network _network;
         private readonly Cookies _cookies;
         private readonly TextGenerator _textGenerator;
+        //每句歌词时长的计时器
+        private readonly Stopwatch _stopwatch;
+        //暂停期间需要减去的计时器数值
+        private readonly Stopwatch _minusStopwatch;
         /// <summary>
         /// 歌词正常播放时所加入的任务队列
         /// </summary>
@@ -80,6 +84,8 @@ namespace InnerMediaPlayer.Logical
             _sparePlayingColor = new Color32(125, 125, 125, 255);
             _spareNotPlayingColor = new Color32(125, 125, 125, 255);
             _lyrics = new Dictionary<int, Lyric>(20);
+            _stopwatch = new Stopwatch();
+            _minusStopwatch = new Stopwatch();
             this.taskQueue = taskQueue;
             this.interruptTaskQueue = interruptTaskQueue;
         }
@@ -286,11 +292,12 @@ namespace InnerMediaPlayer.Logical
         /// <returns>任务是否被中断执行？</returns>
         private async Task<bool> CountDownTimerAsync(float maxTime, int id, Line lastLine, Color highLight, Color normal, CancellationToken token)
         {
-            //每句歌词时长的计时器
-            Stopwatch stopwatch = Stopwatch.StartNew();
+            _stopwatch.Reset();
+            _minusStopwatch.Reset();
+            _stopwatch.Start();
             //计算开始后如果暂停则需要减去暂停期间的时间
             double minusSeconds = default;
-            while (stopwatch.Elapsed.TotalSeconds - minusSeconds < maxTime)
+            while (_stopwatch.Elapsed.TotalSeconds - minusSeconds < maxTime)
             {
                 await Task.Yield();
                 if (token.IsCancellationRequested)
@@ -304,28 +311,29 @@ namespace InnerMediaPlayer.Logical
                     return true;
                 }
 
-                //暂停期间需要减去的计时器数值
-                Stopwatch minusStopwatch = null;
                 if (_playingList.Pause)
-                    minusStopwatch = Stopwatch.StartNew();
+                    _minusStopwatch.Start();
                 while (_playingList.Pause)
                 {
                     await Task.Yield();
                 }
 
-                if (minusStopwatch == null)
+                if (!_minusStopwatch.IsRunning)
                     continue;
-                minusSeconds += minusStopwatch.Elapsed.TotalSeconds;
-                minusStopwatch.Stop();
+                minusSeconds += _minusStopwatch.Elapsed.TotalSeconds;
+                _minusStopwatch.Reset();
             }
 
-            stopwatch.Stop();
             //暂停且删除当前曲目后，应不再滚动歌词
             if (!_lyrics.ContainsKey(id) || !Application.isPlaying)
+            {
+                _stopwatch.Reset();
                 return true;
+            }
 #if UNITY_EDITOR && UNITY_DEBUG
-            Debug.Log((stopwatch.Elapsed.TotalSeconds - minusSeconds, maxTime));
+            Debug.Log((_stopwatch.Elapsed.TotalSeconds - minusSeconds, maxTime));
 #endif
+            _stopwatch.Reset();
             return false;
         }
 
