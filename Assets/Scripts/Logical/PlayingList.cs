@@ -110,172 +110,165 @@ namespace InnerMediaPlayer.Logical
         internal void AddToList(int id, string songName, string artist, AudioClip audioClip, Sprite album, RectTransform uiContent, Action<int> disposeLyric)
         {
             Song song = _songFactory.Create(id, songName, artist, audioClip, album);
-            if (!PlayList.Contains(song))
+            PlayList.AddLast(song);
+            UIElement ui = _uiFactory.Create(id, songName, artist, album, uiContent);
+            ui._delete.onClick.AddListener(Delete);
+            void Delete()
             {
-                PlayList.AddLast(song);
-                UIElement ui = _uiFactory.Create(id, songName, artist, album, uiContent);
-                ui._delete.onClick.AddListener(Delete);
-                void Delete()
-                {
 #if !UNITY_EDITOR && UNITY_DEBUG
                     Debug.Log($"删除了{songName}");
 #endif
-                    if (song == PlayList.First.Value)
-                    {
-                        _audioSource.Stop();
-                        _handledByEvent = true;
-                        _audioSource.clip = null;
-                    }
-                    UIList.Remove(ui);
-                    ui.Dispose();
-                    PlayList.Remove(song);
-                    song.Dispose();
-                    disposeLyric(id);
+                if (song == PlayList.First.Value)
+                {
+                    _audioSource.Stop();
+                    _handledByEvent = true;
+                    _audioSource.clip = null;
+                }
+                UIList.Remove(ui);
+                ui.Dispose();
+                PlayList.Remove(song);
+                song.Dispose();
+                disposeLyric(id);
+            }
+
+            UIViewerBase.AddEventTriggerInterface(ui._eventTrigger, EventTriggerType.Drag, Drag);
+            UIViewerBase.AddEventTriggerInterface(ui._eventTrigger, EventTriggerType.BeginDrag, BeginDrag);
+            UIViewerBase.AddEventTriggerInterface(ui._eventTrigger, EventTriggerType.EndDrag, EndDrag);
+
+            void Drag(BaseEventData eventData)
+            {
+                if (!(eventData is PointerEventData pointer))
+                    return;
+                Vector3 position = RectTransformUtility.PixelAdjustPoint(pointer.position, ui._element, _canvas);
+                position = uiContent.InverseTransformPoint(position + _distance);
+                _virtualQueueItem._element.localPosition = position;
+                _virtualQueueItem._element.anchoredPosition += uiContent.anchoredPosition;
+            }
+
+            void BeginDrag(BaseEventData eventData)
+            {
+                _virtualQueueItem.Reassign(songName, artist, album);
+                _virtualQueueItem._element.gameObject.SetActive(true);
+                _distance = ui._element.position - ui._move.position;
+            }
+
+            void EndDrag(BaseEventData eventData)
+            {
+                _virtualQueueItem._element.gameObject.SetActive(false);
+                UIElement uiElement = null;
+                float distance = float.MaxValue;
+                //获取离目标最近的元素
+                foreach (UIElement element in UIList)
+                {
+                    float result = _virtualQueueItem._element.transform.position.y - element._element.transform.position.y;
+                    if (!(Mathf.Abs(result) < Mathf.Abs(distance)))
+                        continue;
+                    uiElement = element;
+                    distance = result;
                 }
 
-                UIViewerBase.AddEventTriggerInterface(ui._eventTrigger, EventTriggerType.Drag, Drag);
-                UIViewerBase.AddEventTriggerInterface(ui._eventTrigger, EventTriggerType.BeginDrag, BeginDrag);
-                UIViewerBase.AddEventTriggerInterface(ui._eventTrigger, EventTriggerType.EndDrag, EndDrag);
-
-                void Drag(BaseEventData eventData)
-                {
-                    if (!(eventData is PointerEventData pointer))
-                        return;
-                    Vector3 position = RectTransformUtility.PixelAdjustPoint(pointer.position, ui._element, _canvas);
-                    position = uiContent.InverseTransformPoint(position + _distance);
-                    _virtualQueueItem._element.localPosition = position;
-                    _virtualQueueItem._element.anchoredPosition += uiContent.anchoredPosition;
-                }
-
-                void BeginDrag(BaseEventData eventData)
-                {
-                    _virtualQueueItem.Reassign(songName, artist, album);
-                    _virtualQueueItem._element.gameObject.SetActive(true);
-                    _distance = ui._element.position - ui._move.position;
-                }
-
-                void EndDrag(BaseEventData eventData)
-                {
-                    _virtualQueueItem._element.gameObject.SetActive(false);
-                    UIElement uiElement = null;
-                    float distance = float.MaxValue;
-                    //获取离目标最近的元素
-                    foreach (UIElement element in UIList)
-                    {
-                        float result = _virtualQueueItem._element.transform.position.y - element._element.transform.position.y;
-                        if (!(Mathf.Abs(result) < Mathf.Abs(distance)))
-                            continue;
-                        uiElement = element;
-                        distance = result;
-                    }
-
-                    //如果离本身最近，则返回
-                    if (ui.Equals(uiElement))
-                        return;
-                    //最近的元素在链表中的节点
-                    LinkedListNode<UIElement> elementNode = UIList.Find(uiElement);
-                    int targetIndex = FindIndex(UIList, uiElement);
-                    int currentIndex = FindIndex(UIList, ui);
+                //如果离本身最近，则返回
+                if (ui.Equals(uiElement))
+                    return;
+                //最近的元素在链表中的节点
+                LinkedListNode<UIElement> elementNode = UIList.Find(uiElement);
+                int targetIndex = FindIndex(UIList, uiElement);
+                int currentIndex = FindIndex(UIList, ui);
 #if !UNITY_EDITOR && UNITY_DEBUG
                     Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
 #endif
 
-                    int FindIndex<T>(LinkedList<T> list, T value)
+                int FindIndex<T>(LinkedList<T> list, T value)
+                {
+                    if (value == null)
+                        return default;
+                    int index = 0;
+                    LinkedListNode<T> node = list.First;
+                    EqualityComparer<T> comparer = EqualityComparer<T>.Default;
+                    while (node != null && !comparer.Equals(node.Value, value))
                     {
-                        if (value == null)
-                            return default;
-                        int index = 0;
-                        LinkedListNode<T> node = list.First;
-                        EqualityComparer<T> comparer = EqualityComparer<T>.Default;
-                        while (node != null && !comparer.Equals(node.Value, value))
-                        {
-                            index++;
-                            node = node.Next;
-                        }
-
-                        return index;
+                        index++;
+                        node = node.Next;
                     }
+
+                    return index;
+                }
                     
-                    LinkedListNode<Song> songNode = PlayList.Find(_songFactory.Create(uiElement._id, songName, artist, audioClip, album));
+                LinkedListNode<Song> songNode = PlayList.Find(_songFactory.Create(uiElement._id, songName, artist, audioClip, album));
 
-                    if (currentIndex < targetIndex && distance > 0)
-                        targetIndex--;
-                    if (currentIndex > targetIndex && distance < 0)
-                        targetIndex++;
+                if (currentIndex < targetIndex && distance > 0)
+                    targetIndex--;
+                if (currentIndex > targetIndex && distance < 0)
+                    targetIndex++;
 
-                    if (distance > 0)
+                if (distance > 0)
+                {
+                    //如果拖拽的是第一个元素
+                    if (PlayList.Find(song) == PlayList.First)
                     {
-                        //如果拖拽的是第一个元素
-                        if (PlayList.Find(song) == PlayList.First)
-                        {
-                            _handledByEvent = true;
-                            MoveNodeBefore(PlayList.First, songNode, PlayList);
-                            MoveNodeBefore(UIList.First, elementNode, UIList);
-                            Pause = false;
-                            _audioSource.Stop();
-                            ui._element.SetSiblingIndex(targetIndex);
-                            return;
-                        }
-
-                        //其他元素拖拽到了第一位
-                        if (elementNode == UIList.First)
-                        {
-                            _handledByEvent = true;
-                            MoveNodeBefore(PlayList.Find(song), PlayList.First, PlayList);
-                            MoveNodeBefore(UIList.Find(ui), UIList.First, UIList);
-                            Pause = false;
-                            _audioSource.Stop();
-                            ui._element.SetSiblingIndex(targetIndex);
-                            return;
-                        }
-
-                        UIList.Remove(ui);
-                        PlayList.Remove(song);
-                        UIList.AddBefore(elementNode, ui);
-                        PlayList.AddBefore(songNode, song);
-                    }
-                    else
-                    {
-                        //如果拖拽的是第一个元素
-                        if (PlayList.Find(song) == PlayList.First)
-                        {
-                            _handledByEvent = true;
-                            MoveNodeAfter(PlayList.First, songNode, PlayList);
-                            MoveNodeAfter(UIList.First, elementNode, UIList);
-                            Pause = false;
-                            _audioSource.Stop();
-                            ui._element.SetSiblingIndex(targetIndex);
-                            return;
-                        }
-
-                        UIList.Remove(ui);
-                        PlayList.Remove(song);
-                        UIList.AddAfter(elementNode, ui);
-                        PlayList.AddAfter(songNode, song);
+                        _handledByEvent = true;
+                        MoveNodeBefore(PlayList.First, songNode, PlayList);
+                        MoveNodeBefore(UIList.First, elementNode, UIList);
+                        Pause = false;
+                        _audioSource.Stop();
+                        ui._element.SetSiblingIndex(targetIndex);
+                        return;
                     }
 
-                    ui._element.SetSiblingIndex(targetIndex);
-
-                    void MoveNodeBefore<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                    //其他元素拖拽到了第一位
+                    if (elementNode == UIList.First)
                     {
-                        list.Remove(node);
-                        list.AddBefore(other, node);
+                        _handledByEvent = true;
+                        MoveNodeBefore(PlayList.Find(song), PlayList.First, PlayList);
+                        MoveNodeBefore(UIList.Find(ui), UIList.First, UIList);
+                        Pause = false;
+                        _audioSource.Stop();
+                        ui._element.SetSiblingIndex(targetIndex);
+                        return;
                     }
 
-                    void MoveNodeAfter<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                    UIList.Remove(ui);
+                    PlayList.Remove(song);
+                    UIList.AddBefore(elementNode, ui);
+                    PlayList.AddBefore(songNode, song);
+                }
+                else
+                {
+                    //如果拖拽的是第一个元素
+                    if (PlayList.Find(song) == PlayList.First)
                     {
-                        list.Remove(node);
-                        list.AddAfter(other, node);
+                        _handledByEvent = true;
+                        MoveNodeAfter(PlayList.First, songNode, PlayList);
+                        MoveNodeAfter(UIList.First, elementNode, UIList);
+                        Pause = false;
+                        _audioSource.Stop();
+                        ui._element.SetSiblingIndex(targetIndex);
+                        return;
                     }
+
+                    UIList.Remove(ui);
+                    PlayList.Remove(song);
+                    UIList.AddAfter(elementNode, ui);
+                    PlayList.AddAfter(songNode, song);
                 }
 
-                ui._element.SetAsLastSibling();
-                UIList.AddLast(ui);
+                ui._element.SetSiblingIndex(targetIndex);
+
+                void MoveNodeBefore<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                {
+                    list.Remove(node);
+                    list.AddBefore(other, node);
+                }
+
+                void MoveNodeAfter<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                {
+                    list.Remove(node);
+                    list.AddAfter(other, node);
+                }
             }
-#if UNITY_DEBUG
-            else
-                Debug.Log($"歌曲名:{songName}已经被添加过");
-#endif
+
+            ui._element.SetAsLastSibling();
+            UIList.AddLast(ui);
         }
 
         /// <summary>
@@ -501,7 +494,7 @@ namespace InnerMediaPlayer.Logical
                 Pause = false;
             }
 #if UNITY_DEBUG
-            Debug.Log($"当前状态是{(Pause ? "播放中" : "暂停中")}");
+            Debug.Log($"当前状态是{(!Pause ? "播放中" : "暂停中")}");
 #endif
             return Pause;
         }
@@ -684,6 +677,11 @@ namespace InnerMediaPlayer.Logical
             DataItem item = songResult.data[0];
             AudioClip clip = await _network.GetAudioClipAsync(item.url, item.md5, AudioType.MPEG);
             return clip;
+        }
+
+        internal bool Contains(int id)
+        {
+            return PlayList.Contains(_songFactory.Create(id, null, null, null, null));
         }
 
         public void Dispose()
