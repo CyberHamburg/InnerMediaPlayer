@@ -38,11 +38,13 @@ namespace InnerMediaPlayer.UI
         private SearchRequestData _requestJsonData;
         private Lyric _lyric;
         private NowPlaying _nowPlaying;
+        private PlayList _playList;
         private SongDetail[] _songItems;
         private TaskQueue<int,bool> _iterateSongListTaskQueue;
         private TaskQueue _searchTaskQueue;
         //拼接歌手字符串需要
         private StringBuilder _expansion;
+        private List<int> _loadingSongsId;
         private float _currentPageDistance;
         private int _searchedSongsCount;
 
@@ -66,12 +68,14 @@ namespace InnerMediaPlayer.UI
         private void Awake()
         {
             _expansion = new StringBuilder(35);
+            _loadingSongsId = new List<int>(10);
         }
 
         private async void Start()
         {
             _lyric = uiManager.FindUIViewer<Lyric>("Lyric_P", "Canvas", "CanvasRoot");
             _nowPlaying = uiManager.FindUIViewer<NowPlaying>("NowPlaying_P", "Canvas", "CanvasRoot");
+            _playList= uiManager.FindUIViewer<PlayList>("PlayList_P", "Canvas", "CanvasRoot");
 
             _searchContainer = FindGameObjectInList("InputField", null).GetComponent<InputField>();
             _resultContainer = FindGameObjectInList("Display", null).GetComponent<ScrollRect>();
@@ -338,19 +342,51 @@ namespace InnerMediaPlayer.UI
 
         private async void Play(int id,string songName,string artist,Sprite album)
         {
-            AudioClip clip = await _nowPlaying.GetAudioClipAsync(id);
+            if (_loadingSongsId.Contains(id) || _playList.Contains(id))
+            {
+                #region Log
+
+#if UNITY_DEBUG
+                Debug.Log($"Id为{id},名称为{songName}的歌曲已经被添加过");
+#endif
+
+                #endregion
+                return;
+            }
+
+            _loadingSongsId.Add(id);
+            AudioClip clip = await _playList.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
-            int disposedSongId = _nowPlaying.ForceAdd(id, songName, artist, clip, album);
-            _iterateSongListTaskQueue.AddTask(disposedSongId, true,_nowPlaying.IterationListAsync);
+            int disposedSongId = _playList.ForceAdd(id, songName, artist, clip, album, _playList.ScrollRect.content, _lyric.Dispose);
+            _iterateSongListTaskQueue.AddTask(disposedSongId, true, IterationListAsync);
+            _loadingSongsId.Remove(id);
         }
 
         private async void AddToList(int id, string songName, string artist, Sprite album)
         {
-            AudioClip clip = await _nowPlaying.GetAudioClipAsync(id);
+            if (_loadingSongsId.Contains(id) || _playList.Contains(id))
+            {
+                #region Log
+
+#if UNITY_DEBUG
+                Debug.Log($"Id为{id},名称为{songName}的歌曲已经被添加过");
+#endif
+
+                #endregion
+                return;
+            }
+
+            _loadingSongsId.Add(id);
+            AudioClip clip = await _playList.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
-            _nowPlaying.AddToList(id, songName, artist, clip, album);
-            _iterateSongListTaskQueue.AddTask(default, false,_nowPlaying.IterationListAsync);
+            _playList.AddToList(id, songName, artist, clip, album, _playList.ScrollRect.content, _lyric.Dispose);
+            _iterateSongListTaskQueue.AddTask(default, false, IterationListAsync);
+            _loadingSongsId.Remove(id);
         }
+
+        private Task IterationListAsync(int disposedSongId, bool stopByForce, CancellationToken token)
+            => _playList.IterationListAsync(_nowPlaying.UpdateUI, _lyric.Dispose, _lyric.Disable, disposedSongId,
+                stopByForce, _lyric.LyricDisplaySignal, token);
 
         private void ResetSongItem()
         {

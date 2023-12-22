@@ -76,5 +76,7 @@ namespace InnerMediaPlayer.UI
         internal void AddToList(int id, string songName, string artist, AudioClip audioClip, Sprite album,
             RectTransform uiContent, Action<int> disposeLyric) =>
             _playingList.AddToList(id, songName, artist, audioClip, album, uiContent, disposeLyric);
+
+        internal bool Contains(int id) => _playingList.Contains(id);
     }
 }
