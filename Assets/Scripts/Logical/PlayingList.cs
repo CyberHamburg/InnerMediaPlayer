@@ -178,7 +178,7 @@ namespace InnerMediaPlayer.Logical
                     Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
 #endif
 
-                int FindIndex<T>(LinkedList<T> list, T value)
+                static int FindIndex<T>(LinkedList<T> list, T value)
                 {
                     if (value == null)
                         return default;
@@ -193,8 +193,10 @@ namespace InnerMediaPlayer.Logical
 
                     return index;
                 }
-                    
-                LinkedListNode<Song> songNode = PlayList.Find(_songFactory.Create(uiElement._id, songName, artist, audioClip, album));
+
+                Song temp = _songFactory.Create(uiElement._id, songName, artist, audioClip, album);
+                LinkedListNode<Song> songNode = PlayList.Find(temp);
+                temp.Dispose();
 
                 if (currentIndex < targetIndex && distance > 0)
                     targetIndex--;
@@ -254,13 +256,13 @@ namespace InnerMediaPlayer.Logical
 
                 ui._element.SetSiblingIndex(targetIndex);
 
-                void MoveNodeBefore<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                static void MoveNodeBefore<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
                 {
                     list.Remove(node);
                     list.AddBefore(other, node);
                 }
 
-                void MoveNodeAfter<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                static void MoveNodeAfter<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
                 {
                     list.Remove(node);
                     list.AddAfter(other, node);
@@ -368,7 +370,7 @@ namespace InnerMediaPlayer.Logical
                     Debug.Log($"从索引{currentIndex}拖拽到索引{targetIndex}");
 #endif
 
-                    int FindIndex<T>(LinkedList<T> list, T value)
+                    static int FindIndex<T>(LinkedList<T> list, T value)
                     {
                         if (value == null)
                             return default;
@@ -384,7 +386,9 @@ namespace InnerMediaPlayer.Logical
                         return index;
                     }
 
-                    LinkedListNode<Song> songNode = PlayList.Find(_songFactory.Create(uiElement._id, songName, artist, audioClip, album));
+                    Song temp = _songFactory.Create(uiElement._id, songName, artist, audioClip, album);
+                    LinkedListNode<Song> songNode = PlayList.Find(temp);
+                    temp.Dispose();
 
                     if (currentIndex < targetIndex && distance > 0)
                         targetIndex--;
@@ -444,13 +448,13 @@ namespace InnerMediaPlayer.Logical
 
                     ui._element.SetSiblingIndex(targetIndex);
 
-                    void MoveNodeBefore<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                    static void MoveNodeBefore<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
                     {
                         list.Remove(node);
                         list.AddBefore(other, node);
                     }
 
-                    void MoveNodeAfter<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
+                    static void MoveNodeAfter<T>(LinkedListNode<T> node, LinkedListNode<T> other, LinkedList<T> list)
                     {
                         list.Remove(node);
                         list.AddAfter(other, node);
@@ -628,15 +632,15 @@ namespace InnerMediaPlayer.Logical
                             break;
                     }
 
-                void MoveNodeToLast<T>(LinkedListNode<T> node, LinkedList<T> list)
+                static void MoveNodeToLast<T>(LinkedListNode<T> node, LinkedList<T> list)
                 {
-                    if (node == null) 
+                    if (node == null)
                         return;
                     list.RemoveFirst();
                     list.AddLast(node);
                 }
 
-                void MoveNodeToFirst<T>(LinkedListNode<T> node, LinkedList<T> list)
+                static void MoveNodeToFirst<T>(LinkedListNode<T> node, LinkedList<T> list)
                 {
                     if (node == null)
                         return;
@@ -681,7 +685,10 @@ namespace InnerMediaPlayer.Logical
 
         internal bool Contains(int id)
         {
-            return PlayList.Contains(_songFactory.Create(id, null, null, null, null));
+            Song item = _songFactory.Create(id, null, null, null, null);
+            bool contains = PlayList.Contains(item);
+            item.Dispose();
+            return contains;
         }
 
         public void Dispose()
@@ -792,7 +799,7 @@ namespace InnerMediaPlayer.Logical
                 _album.sprite = album;
             }
 
-            public void OnDespawned()
+            void IPoolable<int, string, string, Sprite, Transform, IMemoryPool>.OnDespawned()
             {
                 _element.gameObject.SetActive(false);
                 _element.SetAsLastSibling();
@@ -808,8 +815,8 @@ namespace InnerMediaPlayer.Logical
                 _album.sprite = null;
                 _memoryPool = null;
             }
-
-            public void OnSpawned(int id, string songName, string artist, Sprite album, Transform content, IMemoryPool memoryPool)
+            
+            void IPoolable<int, string, string, Sprite, Transform, IMemoryPool>.OnSpawned(int id, string songName, string artist, Sprite album, Transform content, IMemoryPool memoryPool)
             {
                 if (_element != null && _songName != null && _artist != null && _album != null)
                 {
