@@ -13,6 +13,8 @@
 
 ## 截图
 
+![guide](Documentation/Image/guide1.png)
+![guide1](Documentation/Image/guide2.png)
 ![main](Documentation/Image/main.png)
 ![main1](Documentation/Image/main1.png)
 ![playlist](Documentation/Image/playlist.png)
