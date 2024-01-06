@@ -20,7 +20,8 @@
     ],
     "autoReferenced": true,
     "defineConstraints": [
-        "UNITY_DEBUG"
+        "UNITY_DEBUG",
+        "LIMIT_FRAME"
     ],
     "versionDefines": [],
     "noEngineReferences": false
