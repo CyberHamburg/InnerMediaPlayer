@@ -31,6 +31,7 @@ namespace InnerMediaPlayer.Installer
 
             Container.BindInterfacesAndSelfTo<PlayingList>().AsSingle();
             Container.BindInterfacesAndSelfTo<PrefabManager>().AsSingle();
+            Container.Bind<GameSetting>().AsSingle().NonLazy();
 
             Container.BindFactory<float, string, Color, Transform, Lyrics.Line, Lyrics.Line.Factory>()
                 .FromPoolableMemoryPool(x => x.WithInitialSize(30));
