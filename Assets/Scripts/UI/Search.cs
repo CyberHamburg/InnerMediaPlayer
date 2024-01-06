@@ -35,6 +35,9 @@ namespace InnerMediaPlayer.UI
         //搜索结果的容器
         private Transform _container;
         private GameObject _nullSongResult;
+        private Image _tipBackground;
+        private Text _tipText;
+        private Graphic[] _graphics;
         private SearchRequestData _requestJsonData;
         private Lyric _lyric;
         private NowPlaying _nowPlaying;
@@ -42,6 +45,7 @@ namespace InnerMediaPlayer.UI
         private SongDetail[] _songItems;
         private TaskQueue<int,bool> _iterateSongListTaskQueue;
         private TaskQueue _searchTaskQueue;
+        private TaskQueue<float, float> _tipTaskQueue;
         //拼接歌手字符串需要
         private StringBuilder _expansion;
         private List<int> _loadingSongsId;
@@ -52,10 +56,17 @@ namespace InnerMediaPlayer.UI
         private Color _originalArtistColor;
 
         private const float TurnThePageDistance = 350f;
+        //提示框最大宽度将被限制为此数值
+        private const float LimitedTipWidth = 400f;
+        private const string AddSuccessful = "添加成功";
+        private const string Searching = "正在搜索中";
+        private const string AddRepeatedly = "已经添加过这首歌";
+        private const string PageBeginningAlready = "已经是首页了";
+        private const string PageEndAlready = "已经是末页了";
 
         [Inject]
         private void Initialized(Network network, PrefabManager prefabManager, Crypto crypto, Cookies cookies,
-            TaskQueue<int, bool> playingList, TaskQueue searchTaskQueue)
+            TaskQueue<int, bool> playingList, TaskQueue searchTaskQueue, TaskQueue<float, float> tipsTaskQueue)
         {
             _network = network;
             _prefabManager = prefabManager;
@@ -63,6 +74,7 @@ namespace InnerMediaPlayer.UI
             _cookies = cookies;
             _iterateSongListTaskQueue = playingList;
             _searchTaskQueue = searchTaskQueue;
+            _tipTaskQueue = tipsTaskQueue;
         }
 
         private void Awake()
@@ -81,6 +93,9 @@ namespace InnerMediaPlayer.UI
             _resultContainer = FindGameObjectInList("Display", null).GetComponent<ScrollRect>();
             _container = FindGameObjectInList("Content", "Display").transform;
             _nullSongResult = FindGameObjectInList("NullSongResult", "Content");
+            _tipBackground = FindGameObjectInList("Tip", null).GetComponent<Image>();
+            _tipText = _tipBackground.GetComponentInChildren<Text>(true);
+            _graphics = new Graphic[] { _tipText, _tipBackground };
 
             _searchContainer.onEndEdit.AddListener(SearchAndDisplay);
 
@@ -111,6 +126,79 @@ namespace InnerMediaPlayer.UI
         private void OnDestroy()
         {
             _searchContainer.onEndEdit.RemoveAllListeners();
+        }
+
+        private async Task FadeOut(float displayTimer, float fadeOutTimeInterval, CancellationToken token)
+        {
+            _tipBackground.gameObject.SetActive(true);
+            foreach (Graphic graphic in _graphics)
+            {
+                Color color = graphic.color;
+                color.a = 1f;
+                graphic.color = color;
+            }
+
+            while (displayTimer > 0f)
+            {
+                await new WaitForSeconds(Time.fixedDeltaTime);
+                displayTimer -= Time.fixedDeltaTime;
+                if (token.IsCancellationRequested)
+                    return;
+            }
+
+            while (_isSearching)
+            {
+                await Task.Yield();
+                if (token.IsCancellationRequested)
+                    return;
+            }
+
+            float fadeOutTimer = fadeOutTimeInterval;
+            while (fadeOutTimer > 0f)
+            {
+                await new WaitForSeconds(Time.fixedDeltaTime);
+                fadeOutTimer -= Time.fixedDeltaTime;
+                if (token.IsCancellationRequested)
+                    return;
+                foreach (Graphic graphic in _graphics)
+                {
+                    Color target = graphic.color;
+                    target.a = 0f;
+                    graphic.color = Color.Lerp(target, graphic.color, Mathf.Clamp01(fadeOutTimer / fadeOutTimeInterval));
+                }
+            }
+
+            _tipBackground.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// 自动设置Tip文字与背景框大小
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="maxWidth"></param>
+        private void SetPreferredSize(string message, float maxWidth)
+        {
+            _tipText.text = message;
+            Vector2 imageSize = _tipBackground.rectTransform.rect.size;
+            Vector2 textSize = _tipText.rectTransform.rect.size;
+            float heightGap = Mathf.Abs(imageSize.y - textSize.y);
+            float widthGap = Mathf.Abs(imageSize.x - textSize.x);
+            Vector2 originalSize = _tipText.rectTransform.sizeDelta;
+            if (_tipText.preferredWidth < maxWidth)
+            {
+                originalSize.x = _tipText.preferredWidth;
+            }
+            else
+            {
+                originalSize.x = maxWidth;
+                originalSize.y = _tipText.preferredHeight;
+            }
+            
+            _tipText.rectTransform.sizeDelta = originalSize;
+            originalSize.x += widthGap;
+            originalSize.y += heightGap;
+            _tipBackground.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, originalSize.x);
+            _tipBackground.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, originalSize.y);
         }
 
         private void CalculateDragDistance(BaseEventData eventData)
@@ -144,7 +232,11 @@ namespace InnerMediaPlayer.UI
                 int page = offset / limit;
                 //限制为第一页
                 if (page <= 0)
+                {
+                    SetPreferredSize(PageBeginningAlready, LimitedTipWidth);
+                    _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
                     return;
+                }
                 _requestJsonData.offset = (--page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
                 _network.UpdateFormData(Network.Params, encryptRequestData);
@@ -158,7 +250,11 @@ namespace InnerMediaPlayer.UI
                 int limit = int.Parse(_requestJsonData.limit);
                 //限制为最后一页
                 if (offset + limit >= _searchedSongsCount)
+                {
+                    SetPreferredSize(PageEndAlready, LimitedTipWidth);
+                    _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
                     return;
+                }
                 int page = offset / limit;
                 _requestJsonData.offset = (++page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
@@ -190,6 +286,8 @@ namespace InnerMediaPlayer.UI
         private async Task SearchSongAsync(CancellationToken token)
         {
             _isSearching = true;
+            SetPreferredSize(Searching, LimitedTipWidth);
+            _tipTaskQueue.AddTask(0f, 2f, FadeOut);
             string json = await _network.PostAsync(Network.SearchUrl, true);
             SearchedResult result = JsonMapper.ToObject<SearchedResult>(json);
 #if UNITY_DEBUG
@@ -262,8 +360,42 @@ namespace InnerMediaPlayer.UI
 
                 if (canPlay)
                 {
-                    play.onClick.AddListener(() => Play(song.id, song.name, artist.text, album.sprite));
-                    addList.onClick.AddListener(() => AddToList(song.id, song.name, artist.text, album.sprite));
+                    play.onClick.AddListener(() =>
+                    {
+#if UNITY_DEBUG
+                        #region Log
+                        bool isAdded = _loadingSongsId.Contains(song.id) || _playList.Contains(song.id);
+                        if (isAdded)
+                        {
+                            Debug.Log($"Id为{song.id},名称为{song.name}的歌曲被强制播放");
+                        }
+                        #endregion
+#endif
+                        Play(song.id, song.name, artist.text, album.sprite);
+                        SetPreferredSize(AddSuccessful, LimitedTipWidth);
+                        _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                    });
+                    addList.onClick.AddListener(() =>
+                    {
+                        bool isAdded = _loadingSongsId.Contains(song.id) || _playList.Contains(song.id);
+                        if (isAdded)
+                        {
+                            #region Log
+
+#if UNITY_DEBUG
+                            Debug.Log($"Id为{song.id},名称为{song.name}的歌曲已经被添加过");
+#endif
+
+                            #endregion
+
+                            SetPreferredSize(AddRepeatedly, LimitedTipWidth);
+                            _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                            return;
+                        }
+                        AddToList(song.id, song.name, artist.text, album.sprite);
+                        SetPreferredSize(AddSuccessful, LimitedTipWidth);
+                        _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                    });
                 }
                 else
                 {
@@ -342,18 +474,6 @@ namespace InnerMediaPlayer.UI
 
         private async void Play(int id,string songName,string artist,Sprite album)
         {
-            if (_loadingSongsId.Contains(id) || _playList.Contains(id))
-            {
-                #region Log
-
-#if UNITY_DEBUG
-                Debug.Log($"Id为{id},名称为{songName}的歌曲已经被添加过");
-#endif
-
-                #endregion
-                return;
-            }
-
             _loadingSongsId.Add(id);
             AudioClip clip = await _playList.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
@@ -364,18 +484,6 @@ namespace InnerMediaPlayer.UI
 
         private async void AddToList(int id, string songName, string artist, Sprite album)
         {
-            if (_loadingSongsId.Contains(id) || _playList.Contains(id))
-            {
-                #region Log
-
-#if UNITY_DEBUG
-                Debug.Log($"Id为{id},名称为{songName}的歌曲已经被添加过");
-#endif
-
-                #endregion
-                return;
-            }
-
             _loadingSongsId.Add(id);
             AudioClip clip = await _playList.GetAudioClipAsync(id);
             await _lyric.InstantiateLyric(id, album.texture);
@@ -403,5 +511,4 @@ namespace InnerMediaPlayer.UI
             }
         }
     }
-
 }
