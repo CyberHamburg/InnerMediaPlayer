@@ -535,7 +535,7 @@ namespace InnerMediaPlayer.Logical
             for (int i = 0; i < lyric.Count; i++)
             {
                 lyric[i].Dispose();
-                lyric[i] = null;
+                lyric[i] = null; 
             }
 
             lyric.Clear();
@@ -568,12 +568,12 @@ namespace InnerMediaPlayer.Logical
                 _pool.Despawn(this);
             }
 
-            public void Disable()
+            internal void Disable()
             {
                 _text.gameObject.SetActive(false);
             }
 
-            public void OnDespawned()
+            void IPoolable<float, string, Color, Transform, IMemoryPool>.OnDespawned()
             {
                 _time = default;
                 _timeInterval = default;
@@ -585,7 +585,7 @@ namespace InnerMediaPlayer.Logical
                 _pool = null;
             }
 
-            public void OnSpawned(float time, string lyric, Color defaultColor, Transform transform, IMemoryPool pool)
+            void IPoolable<float, string, Color, Transform, IMemoryPool>.OnSpawned(float time, string lyric, Color defaultColor, Transform transform, IMemoryPool pool)
             {
                 _time = time;
                 _height = _originalSizeY;
