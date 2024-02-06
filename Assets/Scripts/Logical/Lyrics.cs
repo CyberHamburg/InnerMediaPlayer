@@ -361,7 +361,8 @@ namespace InnerMediaPlayer.Logical
             if (_rollingLyricsId != 0 && _lyrics.ContainsKey(_rollingLyricsId))
             {
                 Lyric lastLyric = _lyrics[_rollingLyricsId];
-                _highLightLyric._text.color = lastLyric.normal;
+                if (_highLightLyric != null)
+                    _highLightLyric._text.color = lastLyric.normal;
             }
 
             _rollingLyricsId = id;
