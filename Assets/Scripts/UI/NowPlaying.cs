@@ -2,11 +2,12 @@ using System;
 using System.Collections;
 using System.Text;
 using InnerMediaPlayer.Base;
-using InnerMediaPlayer.Models.Signal;
+using InnerMediaPlayer.Logical;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro;
+using Debug = UnityEngine.Debug;
 
 namespace InnerMediaPlayer.UI
 {
@@ -71,7 +72,7 @@ namespace InnerMediaPlayer.UI
 
             #region 本地函数
 
-            void LyricSwitchControl() => _lyric.gameObject.SetActive(!_lyric.gameObject.activeSelf);
+            void LyricSwitchControl() => _lyric.SwitchControl();
             void PlayListSwitchControl() => _playList.gameObject.SetActive(true);
             void PlayOrPause()
             {
@@ -91,7 +92,7 @@ namespace InnerMediaPlayer.UI
             //当鼠标按下或结束拖动时则重新分配进度
             //不使用onValueChanged是因为每秒更新进度条时会影响timeSample而产生爆音
             AddEventTriggerInterface(_processBar.gameObject, EventTriggerType.Drag, ProcessControl);
-            AddEventTriggerInterface(_processBar.gameObject, EventTriggerType.PointerDown, ProcessControlDebug);
+            AddEventTriggerInterface(_processBar.gameObject, EventTriggerType.PointerDown, ProcessAndLyricControl);
 
             StartCoroutine(UpdateUIPerSecond());
         }
@@ -128,10 +129,7 @@ namespace InnerMediaPlayer.UI
         {
             if(_pauseButton.isActiveAndEnabled)
                 _playList.PlayOrPause();
-            LyricInterruptDisplaySignal signal = _lyric.LyricInterruptDisplaySignal;
-            signal.Param1 = _playList.CurrentTime;
-            _lyric.LyricInterruptDisplaySignal = signal;
-            Signal.FireId("Interruption", signal);
+            Signal.FireId(DisplayLyricWays.Interrupted, _lyric.LyricInterruptDisplaySignal);
 #if UNITY_DEBUG
             Debug.Log($"拖动后时间为{_processTimer.text}");
 #endif
@@ -150,21 +148,14 @@ namespace InnerMediaPlayer.UI
             TimeProcessControl();
         }
 
-        /// <summary>
-        /// 比<see cref="ProcessControl"/>方法多了log语句
-        /// </summary>
-        /// <param name="eventData"></param>
-        private void ProcessControlDebug(BaseEventData eventData)
+        private void ProcessAndLyricControl(BaseEventData eventData)
         {
 #if UNITY_DEBUG
             Debug.Log($"点击跳转前时间{_timeLineBuilder}");
 #endif
             ProcessControl(eventData);
             _lyric.StopNormalDisplayTask();
-            LyricInterruptDisplaySignal signal = _lyric.LyricInterruptDisplaySignal;
-            signal.Param1 = _playList.CurrentTime;
-            _lyric.LyricInterruptDisplaySignal = signal;
-            Signal.FireId("Interruption", signal);
+            Signal.FireId(DisplayLyricWays.Interrupted, _lyric.LyricInterruptDisplaySignal);
 #if UNITY_DEBUG
             Debug.Log($"点击跳转到{_timeLineBuilder}");
 #endif
@@ -196,11 +187,9 @@ namespace InnerMediaPlayer.UI
         {
             while (Application.isPlaying)
             {
-                //避免暂停后时间轴仍然滚动一次
+                //避免暂停后时间轴仍然滚动一次，在暂停时同样更新时间轴
                 while (_playList.Pause)
-                {
                     yield return null;
-                }
 
                 if (_playList.AlreadyPlayedRate != null)
                 {
@@ -232,7 +221,7 @@ namespace InnerMediaPlayer.UI
             _processBackground.enabled = flag;
         }
 
-        internal void UpdateUI(Logical.PlayingList.Song song)
+        internal void UpdateUI(PlayingList.Song song)
         {
             if (song == null)
             {

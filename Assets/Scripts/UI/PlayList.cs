@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
-using InnerMediaPlayer.Models.Signal;
 using UnityEngine;
 using UnityEngine.UI;
 using Zenject;
@@ -61,11 +60,8 @@ namespace InnerMediaPlayer.UI
 
         internal void ProcessAdjustment(float value) => _playingList.ProcessAdjustment(value);
 
-        internal Task IterationListAsync(Action<PlayingList.Song> updateUI, Action<int> disposeLyric,
-            Action<int> disableLyric, int disposedSongId, bool stopByForce, LyricDisplaySignal lyricDisplaySignal,
-            CancellationToken token) =>
-            _playingList.IterationListAsync(updateUI, disposeLyric, disableLyric, disposedSongId, stopByForce,
-                lyricDisplaySignal, token);
+        internal Task IterationListAsync(Action<PlayingList.Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, CancellationToken token) =>
+            _playingList.IterationListAsync(updateUI, lyric, disposedSongId, stopByForce, token);
 
         internal Task<AudioClip> GetAudioClipAsync(int id) => _playingList.GetAudioClipAsync(id);
 

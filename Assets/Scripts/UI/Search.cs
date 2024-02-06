@@ -476,7 +476,7 @@ namespace InnerMediaPlayer.UI
         {
             _loadingSongsId.Add(id);
             AudioClip clip = await _playList.GetAudioClipAsync(id);
-            await _lyric.InstantiateLyric(id, album.texture);
+            await _lyric.InstantiateLyricAsync(id, album.texture);
             int disposedSongId = _playList.ForceAdd(id, songName, artist, clip, album, _playList.ScrollRect.content, _lyric.Dispose);
             _iterateSongListTaskQueue.AddTask(disposedSongId, true, IterationListAsync);
             _loadingSongsId.Remove(id);
@@ -486,15 +486,14 @@ namespace InnerMediaPlayer.UI
         {
             _loadingSongsId.Add(id);
             AudioClip clip = await _playList.GetAudioClipAsync(id);
-            await _lyric.InstantiateLyric(id, album.texture);
+            await _lyric.InstantiateLyricAsync(id, album.texture);
             _playList.AddToList(id, songName, artist, clip, album, _playList.ScrollRect.content, _lyric.Dispose);
             _iterateSongListTaskQueue.AddTask(default, false, IterationListAsync);
             _loadingSongsId.Remove(id);
         }
 
         private Task IterationListAsync(int disposedSongId, bool stopByForce, CancellationToken token)
-            => _playList.IterationListAsync(_nowPlaying.UpdateUI, _lyric.Dispose, _lyric.Disable, disposedSongId,
-                stopByForce, _lyric.LyricDisplaySignal, token);
+            => _playList.IterationListAsync(_nowPlaying.UpdateUI, _lyric, disposedSongId, stopByForce, token);
 
         private void ResetSongItem()
         {

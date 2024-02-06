@@ -17,25 +17,25 @@ namespace InnerMediaPlayer.UI
     internal class Lyric : UIViewerBase, IInitializable
     {
         private Lyrics _lyrics;
-        private Transform _lyricContent;
-        private Controller _controller;
+        private Mediator _mediator;
         private CoroutineQueue _coroutineQueue;
+        private WaitForEndOfFrame _waitForEndOfFrame;
 
         private float _highLightPositionResetTimer;
         private const float HighLightPositionResetTimer = 2f;
 
-        internal LyricDisplaySignal LyricDisplaySignal { get; private set; }
+        internal LyricDisplaySignal LyricDisplaySignal { get; set; }
         internal LyricInterruptDisplaySignal LyricInterruptDisplaySignal { get; set; }
 
-        private Controller Control
+        private Mediator Controller
         {
             get
             {
-                if (_controller != null)
-                    return _controller;
+                if (_mediator != null)
+                    return _mediator;
                 ScrollRect scrollRect = FindGameObjectInList("Scroll View", null).GetComponent<ScrollRect>();
-                _controller = new Controller(scrollRect, true);
-                return _controller;
+                _mediator = new Mediator(scrollRect, true);
+                return _mediator;
             }
         }
 
@@ -58,33 +58,35 @@ namespace InnerMediaPlayer.UI
                 Func = DisplayByInterruptAsync
             };
 
-            Signal.SubscribeId<LyricDisplaySignal>("Normal", _lyrics.taskQueue.Binder);
-            Signal.SubscribeId<LyricInterruptDisplaySignal>("Interruption", _lyrics.interruptTaskQueue.Binder);
+            Signal.SubscribeId<LyricDisplaySignal>(DisplayLyricWays.Normal, _lyrics.taskQueue.Binder);
+            Signal.SubscribeId<LyricInterruptDisplaySignal>(DisplayLyricWays.Interrupted, _lyrics.interruptTaskQueue.Binder);
+            _waitForEndOfFrame = new WaitForEndOfFrame();
         }
 
         private void Start()
         {
-            AddEventTriggerInterface(Control.scrollRect.gameObject, EventTriggerType.BeginDrag, BeginDrag);
-            AddEventTriggerInterface(Control.scrollRect.gameObject, EventTriggerType.EndDrag, EndDrag);
+            AddEventTriggerInterface(Controller.scrollRect.gameObject, EventTriggerType.BeginDrag, BeginDrag);
+            AddEventTriggerInterface(Controller.scrollRect.gameObject, EventTriggerType.EndDrag, EndDrag);
         }
 
         private void OnDestroy()
         {
-            Signal.UnsubscribeId<LyricDisplaySignal>("Normal", _lyrics.taskQueue.Binder);
-            Signal.UnsubscribeId<LyricInterruptDisplaySignal>("Interruption", _lyrics.interruptTaskQueue.Binder);
+            Signal.UnsubscribeId<LyricDisplaySignal>(DisplayLyricWays.Normal, _lyrics.taskQueue.Binder);
+            Signal.UnsubscribeId<LyricInterruptDisplaySignal>(DisplayLyricWays.Interrupted, _lyrics.interruptTaskQueue.Binder);
         }
 
         private void BeginDrag(BaseEventData eventData)
         {
-            _controller._needScrollAutomatically = false;
-            _controller.scrollRect.movementType = ScrollRect.MovementType.Elastic;
+            _mediator._needScrollAutomatically = false;
+            _mediator.scrollRect.movementType = ScrollRect.MovementType.Elastic;
         }
 
         private void EndDrag(BaseEventData eventData)
         {
-            _controller._needScrollAutomatically = true;
-            _controller.scrollRect.movementType = ScrollRect.MovementType.Unrestricted;
-            _coroutineQueue.Run(HighLightPositionReset);
+            _mediator._needScrollAutomatically = true;
+            _mediator.scrollRect.movementType = ScrollRect.MovementType.Unrestricted;
+            if (_mediator._needHighLightPositionAutoReset)
+                _coroutineQueue.Run(HighLightPositionReset);
         }
 
         private IEnumerator HighLightPositionReset(CancellationToken token)
@@ -92,7 +94,7 @@ namespace InnerMediaPlayer.UI
             _highLightPositionResetTimer = default;
             while (_highLightPositionResetTimer < HighLightPositionResetTimer)
             {
-                while (!_controller._needScrollAutomatically)
+                while (!_mediator._needScrollAutomatically)
                 {
                     yield return null;
                 }
@@ -102,8 +104,15 @@ namespace InnerMediaPlayer.UI
                     yield break;
             }
 
-            _controller.contentTransform.anchoredPosition =
-                new Vector2(_controller.contentTransform.anchoredPosition.x, _lyrics.ContentPosY);
+            _mediator.contentTransform.anchoredPosition =
+                new Vector2(_mediator.contentTransform.anchoredPosition.x, _lyrics.ContentPosY);
+        }
+
+        internal async void SwitchControl()
+        {
+            gameObject.SetActive(!gameObject.activeSelf);
+            await _waitForEndOfFrame;
+            _lyrics.ResetContentPosY(_mediator);
         }
 
         /// <summary>
@@ -112,15 +121,14 @@ namespace InnerMediaPlayer.UI
         /// <param name="id">歌曲id</param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal Task DisplayLyric(int id, CancellationToken token) => _lyrics.DisplayAsync(id, Control, token);
+        internal Task DisplayLyric(int id, CancellationToken token) => _lyrics.DisplayAsync(id, Controller, token);
 
         /// <summary>
         /// 在特定时间点开始展示歌词
         /// </summary>
-        /// <param name="time">在此时间点开始展示歌词</param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal Task DisplayByInterruptAsync(float time, CancellationToken token) => _lyrics.DisplayByInterruptAsync(time, Control, token);
+        internal Task DisplayByInterruptAsync(CancellationToken token) => _lyrics.DisplayByInterruptAsync(Controller, token);
 
         /// <summary>
         /// 停止正常展示歌词任务队列的运行
@@ -129,23 +137,15 @@ namespace InnerMediaPlayer.UI
 
         internal void StopDisplayByInterruptTask() => _lyrics.interruptTaskQueue.Stop();
 
-        internal Task InstantiateLyric(int id, Texture2D album)
-        {
-            if (_lyricContent == null)
-                _lyricContent = FindGameObjectInList("Content", "Viewport").transform;
-            return _lyrics.InstantiateLyricAsync(id, _lyricContent, Control, album);
-        }
+        internal Task InstantiateLyricAsync(int id, Texture2D album) => _lyrics.InstantiateLyricAsync(id, Controller, album);
 
-        internal void SetDefaultColor()
-        {
-            Control.image.color = Control.originalBackgroundColor;
-        }
+        internal void SetDefaultColor() => Controller.image.color = Controller.originalBackgroundColor;
 
         internal void Dispose(int id) => _lyrics.Dispose(id);
 
-        internal void Disable(int id) => _lyrics.Disable(id);
+        internal void Disable(int id) => _lyrics.SetActive(id, false);
 
-        internal class Controller
+        internal class Mediator
         {
             /// <summary>
             /// 歌词Panel下ScrollRect组件
@@ -163,10 +163,28 @@ namespace InnerMediaPlayer.UI
             /// 需要脚本控制滚动歌词吗？
             /// </summary>
             internal bool _needScrollAutomatically;
+            /// <summary>
+            /// 需要歌词自动复位到正在播放的位置吗？
+            /// </summary>
+            internal bool _needHighLightPositionAutoReset;
 
+            /// <summary>
+            /// 歌词所在的panel原本是关闭的吗
+            /// </summary>
+            private bool _originalActiveSelf;
+            /// <summary>
+            /// 歌词背景原本的不透明度
+            /// </summary>
+            private float _originalAlpha;
+            
             internal float VerticalSpacing => verticalLayoutGroup.spacing;
 
-            public Controller(ScrollRect scrollRect, bool needScrollAutomatically)
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="scrollRect"></param>
+            /// <param name="needScrollAutomatically"></param>
+            internal Mediator(ScrollRect scrollRect, bool needScrollAutomatically)
             {
                 this.scrollRect = scrollRect;
                 _needScrollAutomatically = needScrollAutomatically;
@@ -175,6 +193,7 @@ namespace InnerMediaPlayer.UI
                 verticalLayoutGroup = scrollRect.content.GetComponent<VerticalLayoutGroup>();
                 contentTransform = scrollRect.content;
                 scrollViewTransform = (RectTransform)scrollRect.transform;
+                _needHighLightPositionAutoReset = true;
             }
         }
     }

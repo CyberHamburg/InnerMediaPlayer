@@ -16,9 +16,8 @@ namespace InnerMediaPlayer.Installer
         public override void InstallBindings()
         {
             SignalBusInstaller.Install(Container);
-            //懒得再写一个枚举了\-.-/
-            Container.DeclareSignalWithInterfaces<LyricDisplaySignal>().WithId("Normal");
-            Container.DeclareSignalWithInterfaces<LyricInterruptDisplaySignal>().WithId("Interruption");
+            Container.DeclareSignalWithInterfaces<LyricDisplaySignal>().WithId(DisplayLyricWays.Normal);
+            Container.DeclareSignalWithInterfaces<LyricInterruptDisplaySignal>().WithId(DisplayLyricWays.Interrupted);
 
             Container.BindInterfacesAndSelfTo<JsonRegister>().AsSingle();
             Container.Bind<Crypto>().ToSelf().AsSingle();

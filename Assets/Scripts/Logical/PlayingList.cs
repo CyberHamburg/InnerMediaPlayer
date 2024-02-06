@@ -8,6 +8,7 @@ using InnerMediaPlayer.Management;
 using InnerMediaPlayer.Management.UI;
 using InnerMediaPlayer.Models;
 using InnerMediaPlayer.Models.Signal;
+using InnerMediaPlayer.UI;
 using LitJson;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -90,11 +91,11 @@ namespace InnerMediaPlayer.Logical
 
         public void Initialize()
         {
-            Transform viewport = _uiManager.FindUIViewer<UI.PlayList>("PlayList_P", "Canvas", "CanvasRoot").ScrollRect.viewport;
+            Transform viewport = _uiManager.FindUIViewer<PlayList>("PlayList_P", "Canvas", "CanvasRoot").ScrollRect.viewport;
             GameObject go = Object.Instantiate(_prefabManager["PlayQueueItem"], viewport);
             go.SetActive(false);
             _virtualQueueItem = new UIElement((RectTransform)go.transform);
-            _canvas = _uiManager.FindCanvas(typeof(UI.PlayList), "Canvas", "CanvasRoot").GetComponent<Canvas>();
+            _canvas = _uiManager.FindCanvas(typeof(PlayList), "Canvas", "CanvasRoot").GetComponent<Canvas>();
         }
 
         /// <summary>
@@ -545,16 +546,12 @@ namespace InnerMediaPlayer.Logical
         /// 遍历当前播放列表，新加入歌曲后则重新被调用
         /// </summary>
         /// <param name="updateUI">更新最下方播放栏的ui方法</param>
-        /// <param name="disposeLyric">将歌词返回内存池的方法</param>
-        /// <param name="disableLyric">暂时隐藏歌词的方法</param>
+        /// <param name="lyric"></param>
         /// <param name="disposedSongId">要销毁的歌曲id</param>
         /// <param name="stopByForce">是否被强制停止播放</param>
-        /// <param name="lyricDisplaySignal"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task IterationListAsync(Action<Song> updateUI, Action<int> disposeLyric,
-            Action<int> disableLyric, int disposedSongId, bool stopByForce, LyricDisplaySignal lyricDisplaySignal,
-            CancellationToken token)
+        internal async Task IterationListAsync(Action<Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, CancellationToken token)
         {
 #if UNITY_DEBUG
             #region Log
@@ -572,7 +569,7 @@ namespace InnerMediaPlayer.Logical
             LinkedListNode<Song> currentPlaying = PlayList.First;
             //判断是否需要移除歌词
             if (disposedSongId != default && disposedSongId != currentPlaying.Value._id)
-                disposeLyric(disposedSongId);
+                lyric.Dispose(disposedSongId);
 
             while (PlayList.Count > 0)
             {
@@ -581,9 +578,18 @@ namespace InnerMediaPlayer.Logical
                     case true:
                         //重置时间，否则会导致不从开始播放
                         _audioSource.timeSamples = default;
-                        Play();
+                        if (disposedSongId != currentPlaying.Value._id)
+                            Play();
+                        //如果强制播放同一首
+                        else
+                        {
+                            updateUI(currentPlaying.Value);
+                            _signal.FireId(DisplayLyricWays.Normal, lyric.LyricDisplaySignal);
+                            Pause = false;
+                            _audioSource.Play();
+                        }
                         break;
-                    case false when !_audioSource.isPlaying:
+                    case false when !_audioSource.isPlaying && !Pause:
                         Play();
                         break;
                 }
@@ -593,8 +599,10 @@ namespace InnerMediaPlayer.Logical
                 {
                     _audioSource.clip = currentPlaying.Value._audioClip;
                     updateUI(currentPlaying.Value);
-                    lyricDisplaySignal.Param1 = currentPlaying.Value._id;
-                    _signal.FireId("Normal", lyricDisplaySignal);
+                    LyricDisplaySignal signal = lyric.LyricDisplaySignal;
+                    signal.Param1 = currentPlaying.Value._id;
+                    lyric.LyricDisplaySignal = signal;
+                    _signal.FireId(DisplayLyricWays.Normal, lyric.LyricDisplaySignal);
                     _audioSource.Play();
                 }
 
@@ -611,7 +619,7 @@ namespace InnerMediaPlayer.Logical
                 //重置时间，否则会导致不从开始播放
                 _audioSource.timeSamples = default;
                 //播放完一首歌后或被歌曲中断后隐藏当前歌词，为下一首歌准备
-                disableLyric(currentPlaying.Value._id);
+                lyric.Disable(currentPlaying.Value._id);
                 //歌曲被中断后重置pause状态
                 Pause = false;
                 if(!_handledByEvent)

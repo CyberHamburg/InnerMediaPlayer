@@ -4,10 +4,9 @@ using System.Threading.Tasks;
 
 namespace InnerMediaPlayer.Models.Signal
 {
-    internal struct LyricInterruptDisplaySignal : ITaskQueueBinding<float>
+    internal struct LyricInterruptDisplaySignal : ITaskQueueBinding
     {
-        public float Param1 { get; set; }
-        public Func<float, CancellationToken, Task> Func { get; set; }
+        public Func<CancellationToken, Task> Func { get; set; }
         public Action CallBack { get; set; }
     }
 }
