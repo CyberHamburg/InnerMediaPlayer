@@ -494,12 +494,6 @@ namespace InnerMediaPlayer.Logical
         /// <returns></returns>
         internal async Task InstantiateLyricAsync(int id,UI.Lyric.Mediator mediator, Texture2D album)
         {
-            List<Line> list = null;
-            Color backgroundColor = default;
-            Color playing = default;
-            Color notPlaying = default;
-            bool needHighLightPositionAutoReset = default;
-
             if (!_lyrics.ContainsKey(id))
             {
                 #region 请求歌词数据
@@ -513,13 +507,16 @@ namespace InnerMediaPlayer.Logical
 
                 #region 计算歌词背景颜色、歌词颜色、歌词高亮颜色，处理歌词数据
 
-                backgroundColor = SampleAlbumColor(album, mediator.originalBackgroundColor.a);
+                Color backgroundColor = SampleAlbumColor(album, mediator.originalBackgroundColor.a);
                 float deltaNotPlaying = ColorDistanceInRedMean(backgroundColor, _defaultNotPlayingColor);
-                notPlaying = deltaNotPlaying > ColorDistanceLimit ? _defaultNotPlayingColor : _spareNotPlayingColor;
-                (list, needHighLightPositionAutoReset) = PrepareData(lyricResult.lrc.lyric, lyricResult.tlyric?.lyric,
+                Color notPlaying = deltaNotPlaying > ColorDistanceLimit ? _defaultNotPlayingColor : _spareNotPlayingColor;
+                (List<Line> list, bool needHighLightPositionAutoReset) = PrepareData(lyricResult.lrc.lyric, lyricResult.tlyric?.lyric,
                     notPlaying, mediator.contentTransform);
                 float deltaPlaying = ColorDistanceInRedMean(backgroundColor, _defaultPlayingColor);
-                playing = deltaPlaying > ColorDistanceLimit ? _defaultPlayingColor : _sparePlayingColor;
+                Color playing = deltaPlaying > ColorDistanceLimit ? _defaultPlayingColor : _sparePlayingColor;
+                //二次验证，防止点击过快造成重复添加
+                if (!_lyrics.ContainsKey(id))
+                    _lyrics.Add(id, new Lyric(list, backgroundColor, playing, notPlaying, needHighLightPositionAutoReset));
 
                 #endregion
 
@@ -529,13 +526,10 @@ namespace InnerMediaPlayer.Logical
                 Debug.Log($"高亮时色差{deltaPlaying}");
 #endif
             }
-
-            //二次验证，防止点击过快造成重复添加
-            if (_lyrics.ContainsKey(id))
+            else
             {
                 _lyrics[id].Reset();
             }
-            _lyrics.Add(id, new Lyric(list, backgroundColor, playing, notPlaying, needHighLightPositionAutoReset));
         }
 
         private static float ColorDistanceInRedMean(Color32 colorA, Color32 colorB)
