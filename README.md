@@ -9,7 +9,7 @@
 **拒绝商业用途**<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;基于Unity与网易云WebAPI的播放器，素材来自互联网，可以内嵌入其他Unity项目中，但请一定不要商用！<br>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;目前只支持使用网易云App扫码登录，登录产生的Cookie会存到persistentPath的Cookie.json中，联网动作只会产生于登录、搜索、播放的操作，账号信息不会泄露。<br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;注意：不登录只能返回20个搜索结果，非黑胶会员会员歌曲仍然不能播放。以下为软件内部截图。
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;注意：<del>不登录只能返回20个搜索结果</del><font color = gray size = 2>（网易云你真该死啊，现在不登陆一个结果都不给返回）</font>，非黑胶会员仍然不能播放会员歌曲。以下为软件内部截图。
 
 ## 截图
 
