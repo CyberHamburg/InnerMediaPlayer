@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Models.Lyric;
@@ -18,17 +19,25 @@ using Network = InnerMediaPlayer.Tools.Network;
 
 namespace InnerMediaPlayer.Logical
 {
+    internal enum DisplayLyricWays
+    {
+        Normal = 0,
+        Interrupted
+    }
+
     internal class Lyrics
     {
         private readonly PlayingList _playingList;
         private readonly Line.Factory _factory;
         private readonly Network _network;
         private readonly Cookies _cookies;
-        private readonly TextGenerator _textGenerator;
         //每句歌词时长的计时器
         private readonly Stopwatch _stopwatch;
         //暂停期间需要减去的计时器数值
         private readonly Stopwatch _minusStopwatch;
+        //以歌曲id为key,Lyric为value的字典
+        private readonly Dictionary<int, Lyric> _lyrics;
+
         /// <summary>
         /// 歌词正常播放时所加入的任务队列
         /// </summary>
@@ -36,7 +45,8 @@ namespace InnerMediaPlayer.Logical
         /// <summary>
         /// 当需要调整歌词进度时所使用的任务队列
         /// </summary>
-        internal readonly TaskQueue<float> interruptTaskQueue;
+        internal readonly TaskQueue interruptTaskQueue;
+
         //当前高亮的歌词颜色
         private readonly Color _defaultPlayingColor;
         //不在演奏的歌词颜色
@@ -46,39 +56,36 @@ namespace InnerMediaPlayer.Logical
         //当背景颜色与前面定义的不在演奏的歌词颜色相类似时所采用的备用颜色
         private readonly Color _spareNotPlayingColor;
 
-        //以歌曲id为key,Lyric为value的字典
-        private readonly Dictionary<int, Lyric> _lyrics;
-
         //正在高亮展示的那句歌词，在调整歌词进度时判断是否需要取消原高亮展示
         private Line _highLightLyric;
 
-        //正在播放的歌词所属歌曲id
         private int _rollingLyricsId;
+        /// <summary>
+        /// 当此值改变时，则表示需要重新计算<see cref="ContentPosY"/>并赋值
+        /// </summary>
+        private float _contentHeight;
 
-        //未加翻译歌词文本的原本高度
-        private float _lyricHeight;
-        //加入翻译后歌词文本的高度
-        private float _translationLyricHeight;
-        //加入翻译后的行距
-        private float _translationLyricLineSpacing;
-        //加入翻译后歌词文本的高度和未加翻译歌词文本的高度乘数
-        private const float TranslationHeightMultiplier = 1.34f;
-        //加入翻译后行距乘数
-        private const float TranslationLineSpacingMultiplier = 1.3f;
-        //当色差小于此数时判断为颜色类似
+        //加入翻译后行距
+        private const float TranslationLineSpacing = 1.3f;
+        //当色差小于此数时判断为颜色类似，大约在80-130为合理
         private const float ColorDistanceLimit = 110f;
+        //纯文本歌词在歌词展示界面的提示语
+        private const string LyricTextOnlyTip = "(这是纯文本歌词，不支持自动滚动)";
+        //没有歌词时在歌词展示界面的提示语
+        private const string NoLyricTip = "(暂无人上传歌词)";
 
+        /// <summary>
+        /// 高亮歌词应在的y轴位置
+        /// </summary>
         internal float ContentPosY { get; private set; }
 
         internal Lyrics(PlayingList playingList,Line.Factory factory, Network network, Cookies cookies,
-            TextGenerator textGenerator, TaskQueue<int, CancellationToken> taskQueue,
-            TaskQueue<float> interruptTaskQueue)
+            TaskQueue<int> taskQueue, TaskQueue interruptTaskQueue)
         {
             _playingList = playingList;
             _factory = factory;
             _network = network;
             _cookies = cookies;
-            _textGenerator = textGenerator;
             _defaultPlayingColor = new Color32(235, 235, 235, 255);
             _defaultNotPlayingColor = Color.black;
             _sparePlayingColor = new Color32(125, 125, 125, 255);
@@ -90,31 +97,42 @@ namespace InnerMediaPlayer.Logical
             this.interruptTaskQueue = interruptTaskQueue;
         }
 
-        private List<Line> PrepareData(string lyric, string translationLyric, Color notPlayingColor, Transform content, UI.Lyric.Controller controller)
+        private (List<Line> list, bool needHighLightPositionAutoReset) PrepareData(string lyric, string translationLyric, Color notPlayingColor, Transform content)
         {
             List<Line> list = new List<Line>();
 
-            //TODO:1.歌词在超出行宽后自动换行。2.纯文本歌词多行显示
+            #region 没有歌词
+
+            if (string.IsNullOrEmpty(lyric))
+            {
+                Line emptyLine = _factory.Create(0f, string.Empty, notPlayingColor, content);
+                emptyLine._timeInterval = float.MaxValue;
+                list.Add(emptyLine);
+
+                Line tip = _factory.Create(0f, NoLyricTip, notPlayingColor, content);
+                list.Add(tip);
+                return (list, false);
+            }
+
+            #endregion
+
             #region 纯文本歌词处理
 
             //不包含]则表示没有时间轴，是纯文本歌词
             if (!lyric.Contains(']'))
             {
-                Line line = _factory.Create(0f, lyric, notPlayingColor, content);
-                line._timeInterval = 0f;
-                line.SetSiblingIndex(0);
-                list.Add(line);
-                //因为preferredHeight在修改Text的文本后返回的值不准确，所以只能借助textGenerator计算高度
-                float height = _textGenerator.GetPreferredHeight(line._text.text,
-                    line._text.GetGenerationSettings(controller.scrollRect.viewport.sizeDelta));
-                line._text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
-                //加空行的目的是看起来没有滚动的效果
-                Line emptyLine = _factory.Create(0.1f, string.Empty, notPlayingColor, content);
-                emptyLine._timeInterval = 0.1f;
-                emptyLine.SetSiblingIndex(1);
+                //加空行的目的是看起来没有滚动的效果，先加是因为要使高亮一直停留在第一句
+                Line emptyLine = _factory.Create(0f, string.Empty, notPlayingColor, content);
+                emptyLine._timeInterval = float.MaxValue;
                 list.Add(emptyLine);
 
-                return list;
+                Line tip = _factory.Create(0f, LyricTextOnlyTip, notPlayingColor, content);
+                list.Add(tip);
+
+                string[] lyrics = lyric.Split('\n');
+                list.AddRange(lyrics.Select(lyc => _factory.Create(0f, lyc, notPlayingColor, content)));
+
+                return (list, false);
             }
 
             #endregion
@@ -124,7 +142,6 @@ namespace InnerMediaPlayer.Logical
 
             for (int i = 0; i < list.Count; i++)
             {
-                list[i].SetSiblingIndex(i);
                 if (i == 0)
                     list[i]._timeInterval = list[i]._time;
                 else
@@ -132,21 +149,13 @@ namespace InnerMediaPlayer.Logical
             }
 
             if (string.IsNullOrEmpty(translationLyric))
-                return list;
+                return (list, true);
 
-            #region 处理翻译以及歌词UI大小
+            #region 处理翻译
 
             List<(float time, string lyric)> translationList = new List<(float time, string lyric)>();
             ParseTranslation(translationList, translationLyric);
             translationList.Sort();
-
-            //计算加入翻译后的歌词ui的高度和text组件的lineSpacing大小
-            if (_lyricHeight == 0f || _translationLyricHeight == 0f && list.Count > 0)
-            {
-                _lyricHeight = list[0]._text.rectTransform.sizeDelta.y;
-                _translationLyricHeight = _lyricHeight * TranslationHeightMultiplier + controller.VerticalSpacing;
-                _translationLyricLineSpacing = list[0]._text.lineSpacing * TranslationLineSpacingMultiplier;
-            }
 
             int index = 0;
             StringBuilder stringBuilder = new StringBuilder();
@@ -157,17 +166,13 @@ namespace InnerMediaPlayer.Logical
                 stringBuilder.AppendLine(line._text.text);
                 stringBuilder.Append(translationList[index++].lyric);
                 line._text.text = stringBuilder.ToString();
-                RectTransform rectTransform = line._text.rectTransform;
-                rectTransform.sizeDelta = rectTransform.sizeDelta.x * Vector2.right +
-                                          _translationLyricHeight * Vector2.up;
-                line._text.lineSpacing = _translationLyricLineSpacing;
-                line._height = _translationLyricHeight;
+                line._text.lineSpacing = TranslationLineSpacing;
                 stringBuilder.Clear();
             }
 
             #endregion
 
-            return list;
+            return (list, true);
         }
 
         /// <summary>
@@ -189,22 +194,36 @@ namespace InnerMediaPlayer.Logical
                 for (int j = 0; j < timeLineAndLyric.Length - 1; j++)
                 {
                     float currentTime;
-                    try
+                    TimeSpan timeSpan;
+                    string timeLine = timeLineAndLyric[j].Replace("[", string.Empty);
+
+                    bool hasLetter = Regex.IsMatch(timeLine, "[a-zA-Z]");
+                    if (hasLetter)
+                        continue;
+                    if (timeLine.Length == 5)
                     {
-                        TimeSpan timeSpan = TimeSpan.ParseExact(timeLineAndLyric[j].Replace("[", string.Empty),
-                            @"mm\:ss\.FFF", null);
-                        currentTime = (float)timeSpan.TotalSeconds;
+                        ParseExact(@"mm\:ss");
                     }
-                    catch (OverflowException)
+                    else if (timeLine.Length > 5 && timeLine.Length < 10)
                     {
-                        currentTime = float.MaxValue;
+                        ParseExact(@"mm\:ss\.FFF");
                     }
-                    catch (FormatException)
+                    else
                     {
-                        //暂时没碰到其他类型的格式错误，所以此处只尝试解析为这个，不再放入try块
-                        TimeSpan timeSpan = TimeSpan.ParseExact(timeLineAndLyric[j].Replace("[", string.Empty),
-                            @"mm\:ss\.FFF\-\1", null);
-                        currentTime = (float)timeSpan.TotalSeconds;
+                        ParseExact(@"mm\:ss\.FFF\-\1");
+                    }
+
+                    void ParseExact(string format)
+                    {
+                        try
+                        {
+                            timeSpan = TimeSpan.ParseExact(timeLine, format, null);
+                            currentTime = (float)timeSpan.TotalSeconds;
+                        }
+                        catch (OverflowException)
+                        {
+                            currentTime = float.MaxValue;
+                        }
                     }
 
                     Line line = _factory.Create(currentTime, currentLyric, notPlayingColor, content);
@@ -260,14 +279,14 @@ namespace InnerMediaPlayer.Logical
         /// <param name="highLight"></param>
         /// <param name="lastLine"></param>
         /// <param name="targetLine"></param>
-        /// <param name="controller"></param>
-        private void Scroll(Color normal, Color highLight, Line lastLine, Line targetLine, UI.Lyric.Controller controller)
+        /// <param name="mediator"></param>
+        private void Scroll(Color normal, Color highLight, Line lastLine, Line targetLine, UI.Lyric.Mediator mediator)
         {
             //计算歌词居中时Content的y位置
-            ContentPosY += targetLine._height + controller.VerticalSpacing;
-            if (controller._needScrollAutomatically)
+            ContentPosY += targetLine.rectTransform.rect.height + mediator.VerticalSpacing;
+            if (mediator._needScrollAutomatically)
             {
-                controller.contentTransform.anchoredPosition = Vector2.up * ContentPosY + Vector2.right * controller.contentTransform.anchoredPosition.x;
+                mediator.contentTransform.anchoredPosition = Vector2.up * ContentPosY + Vector2.right * mediator.contentTransform.anchoredPosition.x;
             }
 
             if (lastLine == null)
@@ -285,12 +304,10 @@ namespace InnerMediaPlayer.Logical
         /// </summary>
         /// <param name="maxTime"></param>
         /// <param name="id"></param>
-        /// <param name="lastLine"></param>
-        /// <param name="highLight"></param>
-        /// <param name="normal"></param>
+        /// <param name="resetContentPosY"></param>
         /// <param name="token">任务中断令牌</param>
         /// <returns>任务是否被中断执行？</returns>
-        private async Task<bool> CountDownTimerAsync(float maxTime, int id, Line lastLine, Color highLight, Color normal, CancellationToken token)
+        private async Task<bool> CountDownTimerAsync(double maxTime, int id, Action resetContentPosY, CancellationToken token)
         {
             _stopwatch.Reset();
             _minusStopwatch.Reset();
@@ -300,22 +317,16 @@ namespace InnerMediaPlayer.Logical
             while (_stopwatch.Elapsed.TotalSeconds - minusSeconds < maxTime)
             {
                 await Task.Yield();
+                resetContentPosY();
                 if (token.IsCancellationRequested)
-                {
-                    if (lastLine != null)
-                        lastLine._text.color = normal;
-                    if (_highLightLyric == null) 
-                        return true;
-                    _highLightLyric._text.color = highLight;
-                    _highLightLyric = null;
                     return true;
-                }
-
                 if (_playingList.Pause)
                     _minusStopwatch.Start();
                 while (_playingList.Pause)
                 {
                     await Task.Yield();
+                    if (token.IsCancellationRequested)
+                        return true;
                 }
 
                 if (!_minusStopwatch.IsRunning)
@@ -341,28 +352,40 @@ namespace InnerMediaPlayer.Logical
         /// 完整展示歌词，中途不能跳转其他歌词节点，第一次播放调用此方法
         /// </summary>
         /// <param name="id"></param>
-        /// <param name="controller"></param>
+        /// <param name="mediator"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task DisplayAsync(int id, UI.Lyric.Controller controller, CancellationToken token)
+        internal async Task DisplayAsync(int id, UI.Lyric.Mediator mediator, CancellationToken token)
         {
+            //在换歌后调整前一首的高亮为普通
+            if (_rollingLyricsId != 0 && _lyrics.ContainsKey(_rollingLyricsId))
+            {
+                Lyric lastLyric = _lyrics[_rollingLyricsId];
+                _highLightLyric._text.color = lastLyric.normal;
+            }
+
             _rollingLyricsId = id;
             Lyric lyric = _lyrics[id];
             List<Line> lines = lyric.lines;
+            int index = 0;
             foreach (Line line in lines)
             {
                 line._text.gameObject.SetActive(true);
+                if (Mathf.Approximately(line._timeInterval, float.MaxValue) &&
+                    string.IsNullOrEmpty(line._text.text))
+                {
+                    line.SetSiblingIndex(lines.Count - 1);
+                    continue;
+                }
+                line.SetSiblingIndex(index);
+                index++;
             }
 
             //设置歌词开始位置
-            ContentPosY = -controller.scrollViewTransform.rect.height / 2.00f;
-#if UNITY_DEBUG
-            Debug.Log("Display");
-#endif
-            controller.contentTransform.anchoredPosition = Vector2.up * ContentPosY + Vector2.right * controller.contentTransform.anchoredPosition.x;
-
+            ContentPosY = -mediator.scrollViewTransform.rect.height / 2.00f;
+            mediator.contentTransform.anchoredPosition = Vector2.up * ContentPosY + Vector2.right * mediator.contentTransform.anchoredPosition.x;
             //将歌词背景色调为专辑主色
-            controller.image.color = lyric.albumBackground;
+            mediator.image.color = lyric.albumBackground;
 
             Line lastLine = null;
             for (int i = 0; i < lines.Count; i++)
@@ -370,7 +393,7 @@ namespace InnerMediaPlayer.Logical
                 if (i != default)
                     lastLine = lines[i - 1];
                 Line currentLine = lines[i];
-                if(await IsInterruptWhenScrollAsync(currentLine._timeInterval, id, lyric.normal, lyric.highLight, token, lastLine, currentLine, controller))
+                if(await IsInterruptWhenScrollAsync(currentLine._timeInterval, id, lyric.normal, lyric.highLight, token, lastLine, currentLine, mediator))
                     return;
             }
         }
@@ -378,45 +401,50 @@ namespace InnerMediaPlayer.Logical
         /// <summary>
         /// 可从任意进度开始展示歌词，中途随意跳转，在调整歌曲进度时使用此方法并中断<see cref="DisplayAsync"/>方法
         /// </summary>
-        /// <param name="time"></param>
-        /// <param name="controller"></param>
+        /// <param name="mediator"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task DisplayByInterruptAsync(float time, UI.Lyric.Controller controller, CancellationToken token)
+        internal async Task DisplayByInterruptAsync(UI.Lyric.Mediator mediator, CancellationToken token)
         {
             Lyric lyric = _lyrics[_rollingLyricsId];
             List<Line> lines = lyric.lines;
-#if UNITY_DEBUG
-            Debug.Log("DisplayByInterrupt");
-#endif
+            bool needHighLightPositionAutoReset = lyric.needHighLightPositionAutoReset;
+            mediator._needHighLightPositionAutoReset = needHighLightPositionAutoReset;
             int targetIndex = default;
             float startTime = default;
+            float currentTime = _playingList.CurrentTime;
             for (int i = 0; i < lines.Count; i++)
             {
                 Line line = lines[i];
                 if (i != 0)
                     startTime = lines[i - 1]._time;
-                if (!(startTime - time + line._timeInterval > 0))
+                if (!(startTime - currentTime + line._timeInterval > 0))
                     continue;
                 targetIndex = i;
                 break;
             }
 
-            //设置歌词开始位置
-            ContentPosY = -controller.scrollViewTransform.rect.height / 2.00f;
-            //计算当前歌词播放位置
-            for (int i = 0; i < targetIndex; i++)
+            if (needHighLightPositionAutoReset)
             {
-                ContentPosY += lines[i]._height + controller.VerticalSpacing;
+                //设置歌词开始位置
+                ContentPosY = -mediator.scrollViewTransform.rect.height / 2.00f;
+                //计算当前歌词播放位置
+                for (int i = 0; i < targetIndex; i++)
+                {
+                    ContentPosY += lines[i].rectTransform.rect.height + mediator.VerticalSpacing;
+                }
+
+                mediator.contentTransform.anchoredPosition = Vector2.up * ContentPosY +
+                                                               Vector2.right * mediator.contentTransform.anchoredPosition.x;
             }
 
-            controller.contentTransform.anchoredPosition = Vector2.up * ContentPosY +
-                                                           Vector2.right * controller.contentTransform.anchoredPosition.x;
+            if (_highLightLyric != null)
+                _highLightLyric._text.color = lyric.normal;
             Line target = lines[targetIndex];
             _highLightLyric = lines[targetIndex - 1];
-            _highLightLyric._text.color = _defaultPlayingColor;
-            if (await IsInterruptWhenScrollAsync(target._timeInterval + startTime - time, _rollingLyricsId, lyric.normal, lyric.highLight,
-                    token, _highLightLyric, target, controller))
+            _highLightLyric._text.color = lyric.highLight;
+            if (await IsInterruptWhenScrollAsync(target._timeInterval + startTime - currentTime, _rollingLyricsId, lyric.normal, lyric.highLight,
+                    token, _highLightLyric, target, mediator))
                 return;
             Line lastLine = null;
             for (int i = targetIndex + 1; i < lines.Count; i++)
@@ -425,7 +453,7 @@ namespace InnerMediaPlayer.Logical
                     lastLine = lines[i - 1];
                 Line currentLine = lines[i];
                 if (await IsInterruptWhenScrollAsync(currentLine._timeInterval, _rollingLyricsId, lyric.normal, lyric.highLight, token,
-                        lastLine, currentLine, controller))
+                        lastLine, currentLine, mediator))
                     return;
             }
         }
@@ -439,61 +467,74 @@ namespace InnerMediaPlayer.Logical
         /// <param name="token"></param>
         /// <param name="lastLine"></param>
         /// <param name="targetLine"></param>
-        /// <param name="controller"></param>
+        /// <param name="mediator"></param>
         /// <param name="normal"></param>
         /// <returns>任务是否被中断执行？</returns>
-        private async Task<bool> IsInterruptWhenScrollAsync(float maxTime, int songId, Color normal, Color highLight, CancellationToken token,
-            Line lastLine, Line targetLine, UI.Lyric.Controller controller)
+        private async Task<bool> IsInterruptWhenScrollAsync(double maxTime, int songId, Color normal, Color highLight, CancellationToken token,
+            Line lastLine, Line targetLine, UI.Lyric.Mediator mediator)
         {
-            if (await CountDownTimerAsync(maxTime, songId, lastLine, highLight, normal, token))
+            if (lastLine == null)
+                _highLightLyric = targetLine;
+            _highLightLyric = lastLine;
+            if (await CountDownTimerAsync(maxTime, songId, ResetContentPos, token))
                 return true;
-            Scroll(normal, highLight, lastLine, targetLine, controller);
+            Scroll(normal, highLight, lastLine, targetLine, mediator);
             return false;
+
+            void ResetContentPos() => ResetContentPosY(mediator);
         }
 
         /// <summary>
         /// 处理歌词逻辑数据及ui数据，将歌词实例化到场景中
         /// </summary>
         /// <param name="id"></param>
-        /// <param name="lyricContent"></param>
-        /// <param name="controller"></param>
+        /// <param name="mediator"></param>
         /// <param name="album"></param>
         /// <returns></returns>
-        internal async Task InstantiateLyricAsync(int id,Transform lyricContent,UI.Lyric.Controller controller, Texture2D album)
+        internal async Task InstantiateLyricAsync(int id,UI.Lyric.Mediator mediator, Texture2D album)
         {
-            if(_lyrics.ContainsKey(id))
-                return;
+            List<Line> list = null;
+            Color backgroundColor = default;
+            Color playing = default;
+            Color notPlaying = default;
+            bool needHighLightPositionAutoReset = default;
 
-            #region 请求歌词数据
+            if (!_lyrics.ContainsKey(id))
+            {
+                #region 请求歌词数据
 
-            Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
-            LyricRequest lyricRequest = new LyricRequest(id, cookie.value);
-            string resultJson = await _network.PostAsync(Network.LyricUrl, lyricRequest, true);
-            LyricResult lyricResult = JsonMapper.ToObject<LyricResult>(resultJson);
+                Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
+                LyricRequest lyricRequest = new LyricRequest(id, cookie.value);
+                string resultJson = await _network.PostAsync(Network.LyricUrl, lyricRequest, true);
+                LyricResult lyricResult = JsonMapper.ToObject<LyricResult>(resultJson);
 
-            #endregion
+                #endregion
 
-            #region 计算歌词背景颜色、歌词颜色、歌词高亮颜色，处理歌词数据
+                #region 计算歌词背景颜色、歌词颜色、歌词高亮颜色，处理歌词数据
 
-            Color backgroundColor = SampleAlbumColor(album, controller.originalBackgroundColor.a);
-            float deltaNotPlaying = ColorDistanceInRedMean(backgroundColor, _defaultNotPlayingColor);
-            Color notPlaying = deltaNotPlaying > ColorDistanceLimit ? _defaultNotPlayingColor : _spareNotPlayingColor;
-            List<Line> lyric = PrepareData(lyricResult.lrc.lyric, lyricResult.tlyric?.lyric, notPlaying, lyricContent, controller);
-            float deltaPlaying = ColorDistanceInRedMean(backgroundColor, _defaultPlayingColor);
-            Color playing = deltaPlaying > ColorDistanceLimit ? _defaultPlayingColor : _sparePlayingColor;
+                backgroundColor = SampleAlbumColor(album, mediator.originalBackgroundColor.a);
+                float deltaNotPlaying = ColorDistanceInRedMean(backgroundColor, _defaultNotPlayingColor);
+                notPlaying = deltaNotPlaying > ColorDistanceLimit ? _defaultNotPlayingColor : _spareNotPlayingColor;
+                (list, needHighLightPositionAutoReset) = PrepareData(lyricResult.lrc.lyric, lyricResult.tlyric?.lyric,
+                    notPlaying, mediator.contentTransform);
+                float deltaPlaying = ColorDistanceInRedMean(backgroundColor, _defaultPlayingColor);
+                playing = deltaPlaying > ColorDistanceLimit ? _defaultPlayingColor : _sparePlayingColor;
 
-            #endregion
+                #endregion
 
 #if UNITY_DEBUG
-            Debug.Log($"歌词背景颜色为{(Color32)backgroundColor}");
-            Debug.Log($"平时的色差{deltaNotPlaying}");
-            Debug.Log($"高亮时色差{deltaPlaying}");
+                Debug.Log($"歌词背景颜色为{(Color32)backgroundColor}");
+                Debug.Log($"平时的色差{deltaNotPlaying}");
+                Debug.Log($"高亮时色差{deltaPlaying}");
 #endif
+            }
 
             //二次验证，防止点击过快造成重复添加
             if (_lyrics.ContainsKey(id))
-                return;
-            _lyrics.Add(id, new Lyric(lyric, backgroundColor, playing, notPlaying));
+            {
+                _lyrics[id].Reset();
+            }
+            _lyrics.Add(id, new Lyric(list, backgroundColor, playing, notPlaying, needHighLightPositionAutoReset));
         }
 
         private static float ColorDistanceInRedMean(Color32 colorA, Color32 colorB)
@@ -508,7 +549,7 @@ namespace InnerMediaPlayer.Logical
             return deltaC;
         }
 
-        private Color SampleAlbumColor(Texture2D album, float alpha)
+        private static Color SampleAlbumColor(Texture2D album, float alpha)
         {
             Color[] array = album.GetPixels();
             float r=default;
@@ -541,46 +582,79 @@ namespace InnerMediaPlayer.Logical
             lyric.Clear();
         }
 
-        internal void Disable(int id)
+        internal void SetActive(int id, bool value)
         {
-            if (!_lyrics.ContainsKey(id))
+            if (id == 0 || !_lyrics.ContainsKey(id))
                 return;
             List<Line> lyric = _lyrics[id].lines;
             foreach (Line line in lyric)
             {
-                line.Disable();
+                line._text.gameObject.SetActive(value);
             }
+        }
+
+        internal void CalculateContentPosY(UI.Lyric.Mediator mediator)
+        {
+            if (!_lyrics[_rollingLyricsId].needHighLightPositionAutoReset)
+                return;
+            List<Line> lines = _lyrics[_rollingLyricsId].lines;
+            int targetIndex = default;
+            float startTime = default;
+            float currentTime = _playingList.CurrentTime;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                Line line = lines[i];
+                if (i != 0)
+                    startTime = lines[i - 1]._time;
+                if (!(startTime - currentTime + line._timeInterval > 0))
+                    continue;
+                targetIndex = i;
+                break;
+            }
+
+            //设置歌词开始位置
+            ContentPosY = -mediator.scrollViewTransform.rect.height / 2.00f;
+            //计算当前歌词播放位置
+            for (int i = 0; i < targetIndex; i++)
+            {
+                ContentPosY += lines[i].rectTransform.rect.height + mediator.VerticalSpacing;
+            }
+        }
+
+        internal void ResetContentPosY(UI.Lyric.Mediator mediator)
+        {
+            float value = mediator.contentTransform.rect.height;
+            if (Mathf.Approximately(_contentHeight, value))
+                return;
+            _contentHeight = value;
+            CalculateContentPosY(mediator);
+            mediator.contentTransform.anchoredPosition = Vector2.up * ContentPosY +
+                                                         Vector2.right * mediator.contentTransform.anchoredPosition.x;
         }
 
         internal class Line:IPoolable<float,string,Color,Transform,IMemoryPool>,IDisposable,IComparable<Line>
         {
             internal float _time;
             internal float _timeInterval;
-            internal float _height;
             internal Text _text;
+            internal Mask _mask;
 
-            private float _originalSizeY;
             private float _originalLineSpacing;
             private IMemoryPool _pool;
+
+            internal RectTransform rectTransform { get; private set; }
 
             public void Dispose()
             {
                 _pool.Despawn(this);
             }
 
-            internal void Disable()
-            {
-                _text.gameObject.SetActive(false);
-            }
-
             void IPoolable<float, string, Color, Transform, IMemoryPool>.OnDespawned()
             {
                 _time = default;
                 _timeInterval = default;
-                _height = default;
                 _text.gameObject.SetActive(false);
                 _text.text = null;
-                _text.rectTransform.sizeDelta = Vector2.up * _originalSizeY + Vector2.right * _text.rectTransform.sizeDelta.x;
                 _text.lineSpacing = _originalLineSpacing;
                 _pool = null;
             }
@@ -588,7 +662,6 @@ namespace InnerMediaPlayer.Logical
             void IPoolable<float, string, Color, Transform, IMemoryPool>.OnSpawned(float time, string lyric, Color defaultColor, Transform transform, IMemoryPool pool)
             {
                 _time = time;
-                _height = _originalSizeY;
                 if (_text != null)
                 {
                     _text.text = lyric;
@@ -622,11 +695,11 @@ namespace InnerMediaPlayer.Logical
                     {
                         GameObject go = _container.InstantiatePrefabResource("LyricText", content);
                         line._text = go.GetComponent<Text>();
+                        line._mask = go.GetComponent<Mask>();
+                        line.rectTransform = line._text.rectTransform;
                     }
 
-                    line._originalSizeY = line._text.rectTransform.sizeDelta.y;
                     line._originalLineSpacing = line._text.lineSpacing;
-                    line._height = line._originalSizeY;
                     line._time = time;
                     line._text.text = lyric;
                     line._text.color = defaultColor;
@@ -642,24 +715,33 @@ namespace InnerMediaPlayer.Logical
             }
         }
 
-        internal struct Lyric
+        internal readonly struct Lyric
         {
             internal readonly List<Line> lines;
 
             internal readonly Color albumBackground;
             internal readonly Color highLight;
             internal readonly Color normal;
+            /// <summary>
+            /// 需要歌词自动复位到正在播放的位置吗？
+            /// </summary>
+            internal readonly bool needHighLightPositionAutoReset;
 
-            public Lyric(List<Line> lines, Color albumBackground, Color highLight, Color normal)
+            internal Lyric(List<Line> lines, Color albumBackground, Color highLight, Color normal, bool needHighLightPositionAutoReset)
             {
                 this.lines = lines;
                 this.albumBackground = albumBackground;
                 this.highLight = highLight;
                 this.normal = normal;
+                this.needHighLightPositionAutoReset = needHighLightPositionAutoReset;
+                Reset();
+            }
 
-                if (lines == null || lines.Count == 0) 
+            internal void Reset()
+            {
+                if (lines == null || lines.Count == 0)
                     return;
-                if (lines[0]._text.color == normal) 
+                if (lines[0]._text.color == normal)
                     return;
                 foreach (Line line in lines)
                 {
