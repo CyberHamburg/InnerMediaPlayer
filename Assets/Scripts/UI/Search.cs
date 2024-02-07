@@ -50,21 +50,33 @@ namespace InnerMediaPlayer.UI
         private StringBuilder _expansion;
         //拼接歌名与添加成功提示语
         private StringBuilder _addSuccessfully;
+        private StringBuilder _addRepeatedly;
         private List<int> _loadingSongsId;
+        private RectTransform _canvasRectTransform;
         private float _currentPageDistance;
         private int _searchedSongsCount;
+        [SerializeField][Range(0f, 1f)] private float tipWidthMultiplier;
 
         private Color _originalSongNameColor;
         private Color _originalArtistColor;
 
         private const float TurnThePageDistance = 350f;
-        //提示框最大宽度将被限制为此数值
-        private const float LimitedTipWidth = 400f;
         private const string AddSuccessfully = "添加成功";
         private const string Searching = "正在搜索中";
-        private const string AddRepeatedly = "已经添加过这首歌";
+        private const string AddRepeatedly = "已经添加过";
         private const string PageBeginningAlready = "已经是首页了";
         private const string PageEndAlready = "已经是末页了";
+
+        //提示框最大宽度将被限制为此数值
+        private float LimitedTipWidth
+        {
+            get
+            {
+                if (_canvasRectTransform == null)
+                    _canvasRectTransform = (RectTransform)uiManager.FindCanvas(GetType(), "Canvas", "CanvasRoot").transform;
+                return _canvasRectTransform.sizeDelta.x * tipWidthMultiplier;
+            }
+        }
 
         [Inject]
         private void Initialized(Network network, PrefabManager prefabManager, Crypto crypto, Cookies cookies,
@@ -83,6 +95,7 @@ namespace InnerMediaPlayer.UI
         {
             _expansion = new StringBuilder(35);
             _addSuccessfully = new StringBuilder(100);
+            _addRepeatedly = new StringBuilder(130);
             _loadingSongsId = new List<int>(10);
         }
 
@@ -186,21 +199,13 @@ namespace InnerMediaPlayer.UI
             Vector2 textSize = _tipText.rectTransform.rect.size;
             float heightGap = Mathf.Abs(imageSize.y - textSize.y);
             float widthGap = Mathf.Abs(imageSize.x - textSize.x);
-            Vector2 originalSize = _tipText.rectTransform.sizeDelta;
-            if (_tipText.preferredWidth < maxWidth)
-            {
-                originalSize.x = _tipText.preferredWidth;
-                _tipText.rectTransform.sizeDelta = originalSize;
-                originalSize.y = _tipText.preferredHeight;
-            }
-            else
-            {
-                originalSize.x = maxWidth;
-                _tipText.rectTransform.sizeDelta = originalSize;
-                originalSize.y = _tipText.preferredHeight;
-            }
-            
-            _tipText.rectTransform.sizeDelta = originalSize;
+            RectTransform rectTransform = _tipText.rectTransform;
+            Vector2 originalSize = rectTransform.sizeDelta;
+            originalSize.x = _tipText.preferredWidth < maxWidth ? _tipText.preferredWidth : maxWidth;
+            rectTransform.sizeDelta = originalSize;
+            originalSize.y = _tipText.preferredHeight;
+            // ReSharper disable once Unity.InefficientPropertyAccess
+            rectTransform.sizeDelta = originalSize;
             originalSize.x += widthGap;
             originalSize.y += heightGap;
             _tipBackground.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, originalSize.x);
@@ -397,7 +402,10 @@ namespace InnerMediaPlayer.UI
 
                             #endregion
 
-                            SetPreferredSize(AddRepeatedly, LimitedTipWidth);
+                            _addRepeatedly.Clear();
+                            _addRepeatedly.Append(AddRepeatedly);
+                            _addRepeatedly.Append(song.name);
+                            SetPreferredSize(_addRepeatedly.ToString(), LimitedTipWidth);
                             _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
                             return;
                         }
