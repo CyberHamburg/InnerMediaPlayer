@@ -369,6 +369,7 @@ namespace InnerMediaPlayer.Logical
             Lyric lyric = _lyrics[id];
             List<Line> lines = lyric.lines;
             int index = 0;
+            //调整歌词顺序
             foreach (Line line in lines)
             {
                 line._text.gameObject.SetActive(true);
@@ -387,7 +388,7 @@ namespace InnerMediaPlayer.Logical
             mediator.contentTransform.anchoredPosition = Vector2.up * ContentPosY + Vector2.right * mediator.contentTransform.anchoredPosition.x;
             //将歌词背景色调为专辑主色
             mediator.image.color = lyric.albumBackground;
-
+            //滚动歌词
             Line lastLine = null;
             for (int i = 0; i < lines.Count; i++)
             {
@@ -414,6 +415,7 @@ namespace InnerMediaPlayer.Logical
             int targetIndex = default;
             float startTime = default;
             float currentTime = _playingList.CurrentTime;
+            //寻找目标歌词索引
             for (int i = 0; i < lines.Count; i++)
             {
                 Line line = lines[i];
@@ -439,15 +441,21 @@ namespace InnerMediaPlayer.Logical
                                                                Vector2.right * mediator.contentTransform.anchoredPosition.x;
             }
 
+            //将跳转进度前高亮歌词取消高亮
             if (_highLightLyric != null)
                 _highLightLyric._text.color = lyric.normal;
+            //将前句未唱完的歌词高亮并展示指定时间
             Line target = lines[targetIndex];
-            _highLightLyric = lines[targetIndex - 1];
-            _highLightLyric._text.color = lyric.highLight;
+            if (targetIndex != 0)
+            {
+                _highLightLyric = lines[targetIndex - 1];
+                _highLightLyric._text.color = lyric.highLight;
+            }
             if (await IsInterruptWhenScrollAsync(target._timeInterval + startTime - currentTime, _rollingLyricsId, lyric.normal, lyric.highLight,
                     token, _highLightLyric, target, mediator))
                 return;
             Line lastLine = null;
+            //从目标歌词开始顺序展示
             for (int i = targetIndex + 1; i < lines.Count; i++)
             {
                 if (i != default)
@@ -525,10 +533,6 @@ namespace InnerMediaPlayer.Logical
                 Debug.Log($"平时的色差{deltaNotPlaying}");
                 Debug.Log($"高亮时色差{deltaPlaying}");
 #endif
-            }
-            else
-            {
-                _lyrics[id].Reset();
             }
         }
 
@@ -729,19 +733,6 @@ namespace InnerMediaPlayer.Logical
                 this.highLight = highLight;
                 this.normal = normal;
                 this.needHighLightPositionAutoReset = needHighLightPositionAutoReset;
-                Reset();
-            }
-
-            internal void Reset()
-            {
-                if (lines == null || lines.Count == 0)
-                    return;
-                if (lines[0]._text.color == normal)
-                    return;
-                foreach (Line line in lines)
-                {
-                    line._text.color = normal;
-                }
             }
         }
     }
