@@ -48,6 +48,8 @@ namespace InnerMediaPlayer.UI
         private TaskQueue<float, float> _tipTaskQueue;
         //拼接歌手字符串需要
         private StringBuilder _expansion;
+        //拼接歌名与添加成功提示语
+        private StringBuilder _addSuccessfully;
         private List<int> _loadingSongsId;
         private float _currentPageDistance;
         private int _searchedSongsCount;
@@ -58,7 +60,7 @@ namespace InnerMediaPlayer.UI
         private const float TurnThePageDistance = 350f;
         //提示框最大宽度将被限制为此数值
         private const float LimitedTipWidth = 400f;
-        private const string AddSuccessful = "添加成功";
+        private const string AddSuccessfully = "添加成功";
         private const string Searching = "正在搜索中";
         private const string AddRepeatedly = "已经添加过这首歌";
         private const string PageBeginningAlready = "已经是首页了";
@@ -80,6 +82,7 @@ namespace InnerMediaPlayer.UI
         private void Awake()
         {
             _expansion = new StringBuilder(35);
+            _addSuccessfully = new StringBuilder(100);
             _loadingSongsId = new List<int>(10);
         }
 
@@ -187,10 +190,13 @@ namespace InnerMediaPlayer.UI
             if (_tipText.preferredWidth < maxWidth)
             {
                 originalSize.x = _tipText.preferredWidth;
+                _tipText.rectTransform.sizeDelta = originalSize;
+                originalSize.y = _tipText.preferredHeight;
             }
             else
             {
                 originalSize.x = maxWidth;
+                _tipText.rectTransform.sizeDelta = originalSize;
                 originalSize.y = _tipText.preferredHeight;
             }
             
@@ -372,7 +378,10 @@ namespace InnerMediaPlayer.UI
                         #endregion
 #endif
                         Play(song.id, song.name, artist.text, album.sprite);
-                        SetPreferredSize(AddSuccessful, LimitedTipWidth);
+                        _addSuccessfully.Clear();
+                        _addSuccessfully.Append(song.name);
+                        _addSuccessfully.Append(AddSuccessfully);
+                        SetPreferredSize(_addSuccessfully.ToString(), LimitedTipWidth);
                         _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
                     });
                     addList.onClick.AddListener(() =>
@@ -393,7 +402,10 @@ namespace InnerMediaPlayer.UI
                             return;
                         }
                         AddToList(song.id, song.name, artist.text, album.sprite);
-                        SetPreferredSize(AddSuccessful, LimitedTipWidth);
+                        _addSuccessfully.Clear();
+                        _addSuccessfully.Append(song.name);
+                        _addSuccessfully.Append(AddSuccessfully);
+                        SetPreferredSize(_addSuccessfully.ToString(), LimitedTipWidth);
                         _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
                     });
                 }
