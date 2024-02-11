@@ -20,6 +20,7 @@ namespace InnerMediaPlayer.UI
         private Mediator _mediator;
         private CoroutineQueue _coroutineQueue;
         private WaitForEndOfFrame _waitForEndOfFrame;
+        private WaitForSeconds _waitForSeconds;
 
         private float _highLightPositionResetTimer;
         private const float HighLightPositionResetTimer = 2f;
@@ -61,6 +62,7 @@ namespace InnerMediaPlayer.UI
             Signal.SubscribeId<LyricDisplaySignal>(DisplayLyricWays.Normal, _lyrics.taskQueue.Binder);
             Signal.SubscribeId<LyricInterruptDisplaySignal>(DisplayLyricWays.Interrupted, _lyrics.interruptTaskQueue.Binder);
             _waitForEndOfFrame = new WaitForEndOfFrame();
+            _waitForSeconds = new WaitForSeconds(HighLightPositionResetTimer);
         }
 
         private void Start()
@@ -81,12 +83,13 @@ namespace InnerMediaPlayer.UI
             _mediator.scrollRect.movementType = ScrollRect.MovementType.Elastic;
         }
 
-        private void EndDrag(BaseEventData eventData)
+        private async void EndDrag(BaseEventData eventData)
         {
-            _mediator._needScrollAutomatically = true;
             _mediator.scrollRect.movementType = ScrollRect.MovementType.Unrestricted;
             if (_mediator._needHighLightPositionAutoReset)
                 _coroutineQueue.Run(HighLightPositionReset);
+            await _waitForSeconds;
+            _mediator._needScrollAutomatically = true;
         }
 
         private IEnumerator HighLightPositionReset(CancellationToken token)
