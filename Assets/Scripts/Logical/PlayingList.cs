@@ -578,6 +578,7 @@ namespace InnerMediaPlayer.Logical
                     case true:
                         //重置时间，否则会导致不从开始播放
                         _audioSource.timeSamples = default;
+                        Pause = false;
                         if (disposedSongId != currentPlaying.Value._id)
                             Play();
                         //如果强制播放同一首
@@ -585,7 +586,6 @@ namespace InnerMediaPlayer.Logical
                         {
                             updateUI(currentPlaying.Value);
                             _signal.FireId(DisplayLyricWays.Normal, lyric.LyricDisplaySignal);
-                            Pause = false;
                             _audioSource.Play();
                         }
                         break;
