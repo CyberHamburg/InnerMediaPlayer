@@ -55,7 +55,11 @@ namespace InnerMediaPlayer.UI
         private RectTransform _canvasRectTransform;
         private float _currentPageDistance;
         private int _searchedSongsCount;
-        [SerializeField][Range(0f, 1f)] private float tipWidthMultiplier;
+
+        [Header("Tip Configs")]
+        [SerializeField] [Range(0f, 1f)] private float tipWidthMultiplier;
+        [SerializeField] [Range(0f, 5f)] private float tipDisplayNum;
+        [SerializeField] [Range(0f, 5f)] private float tipFadeOutNum;
 
         private Color _originalSongNameColor;
         private Color _originalArtistColor;
@@ -144,6 +148,7 @@ namespace InnerMediaPlayer.UI
             _searchContainer.onEndEdit.RemoveAllListeners();
         }
 
+        //搜索动作特殊计算
         private async Task FadeOut(float displayTimer, float fadeOutTimeInterval, CancellationToken token)
         {
             _tipBackground.gameObject.SetActive(true);
@@ -161,6 +166,9 @@ namespace InnerMediaPlayer.UI
                 if (token.IsCancellationRequested)
                     return;
             }
+
+            if (_isSearching)
+                SetPreferredSize(Searching, LimitedTipWidth);
 
             while (_isSearching)
             {
@@ -245,7 +253,7 @@ namespace InnerMediaPlayer.UI
                 if (page <= 0)
                 {
                     SetPreferredSize(PageBeginningAlready, LimitedTipWidth);
-                    _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
                 _requestJsonData.offset = (--page * limit).ToString();
@@ -263,7 +271,7 @@ namespace InnerMediaPlayer.UI
                 if (offset + limit >= _searchedSongsCount)
                 {
                     SetPreferredSize(PageEndAlready, LimitedTipWidth);
-                    _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
                 int page = offset / limit;
@@ -298,7 +306,7 @@ namespace InnerMediaPlayer.UI
         {
             _isSearching = true;
             SetPreferredSize(Searching, LimitedTipWidth);
-            _tipTaskQueue.AddTask(0f, 2f, FadeOut);
+            _tipTaskQueue.AddTask(0f, tipFadeOutNum, FadeOut);
             string json = await _network.PostAsync(Network.SearchUrl, true);
             SearchedResult result = JsonMapper.ToObject<SearchedResult>(json);
 #if UNITY_DEBUG
@@ -310,6 +318,7 @@ namespace InnerMediaPlayer.UI
 
             if (result.code != 200)
             {
+                _isSearching = false;
                 throw new HttpRequestException($"返回的状态码{result.code}不正确,检查网络问题");
             }
             //如果搜索到是一些屏蔽词或者没有搜索结果的话，提示为空并返回结果
@@ -317,6 +326,7 @@ namespace InnerMediaPlayer.UI
             {
                 _nullSongResult.transform.SetAsFirstSibling();
                 _nullSongResult.SetActive(true);
+                _isSearching = false;
                 return;
             }
 
@@ -387,7 +397,7 @@ namespace InnerMediaPlayer.UI
                         _addSuccessfully.Append(song.name);
                         _addSuccessfully.Append(AddSuccessfully);
                         SetPreferredSize(_addSuccessfully.ToString(), LimitedTipWidth);
-                        _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                        _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
                     });
                     addList.onClick.AddListener(() =>
                     {
@@ -406,7 +416,7 @@ namespace InnerMediaPlayer.UI
                             _addRepeatedly.Append(AddRepeatedly);
                             _addRepeatedly.Append(song.name);
                             SetPreferredSize(_addRepeatedly.ToString(), LimitedTipWidth);
-                            _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                            _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                             return;
                         }
                         AddToList(song.id, song.name, artist.text, album.sprite);
@@ -414,7 +424,7 @@ namespace InnerMediaPlayer.UI
                         _addSuccessfully.Append(song.name);
                         _addSuccessfully.Append(AddSuccessfully);
                         SetPreferredSize(_addSuccessfully.ToString(), LimitedTipWidth);
-                        _tipTaskQueue.AddTask(0.3f, 2f, FadeOut);
+                        _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     });
                 }
                 else
