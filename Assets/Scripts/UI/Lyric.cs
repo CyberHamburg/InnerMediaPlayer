@@ -20,8 +20,8 @@ namespace InnerMediaPlayer.UI
         private Mediator _mediator;
         private CoroutineQueue _coroutineQueue;
         private WaitForEndOfFrame _waitForEndOfFrame;
-        private WaitForSeconds _waitForSeconds;
 
+        private bool _needScrollAutomatically;
         private float _highLightPositionResetTimer;
         private const float HighLightPositionResetTimer = 2f;
 
@@ -62,7 +62,6 @@ namespace InnerMediaPlayer.UI
             Signal.SubscribeId<LyricDisplaySignal>(DisplayLyricWays.Normal, _lyrics.taskQueue.Binder);
             Signal.SubscribeId<LyricInterruptDisplaySignal>(DisplayLyricWays.Interrupted, _lyrics.interruptTaskQueue.Binder);
             _waitForEndOfFrame = new WaitForEndOfFrame();
-            _waitForSeconds = new WaitForSeconds(HighLightPositionResetTimer);
         }
 
         private void Start()
@@ -79,17 +78,17 @@ namespace InnerMediaPlayer.UI
 
         private void BeginDrag(BaseEventData eventData)
         {
+            _needScrollAutomatically = false;
             _mediator._needScrollAutomatically = false;
             _mediator.scrollRect.movementType = ScrollRect.MovementType.Elastic;
         }
 
-        private async void EndDrag(BaseEventData eventData)
+        private void EndDrag(BaseEventData eventData)
         {
             _mediator.scrollRect.movementType = ScrollRect.MovementType.Unrestricted;
             if (_mediator._needHighLightPositionAutoReset)
                 _coroutineQueue.Run(HighLightPositionReset);
-            await _waitForSeconds;
-            _mediator._needScrollAutomatically = true;
+            _needScrollAutomatically = true;
         }
 
         private IEnumerator HighLightPositionReset(CancellationToken token)
@@ -97,16 +96,18 @@ namespace InnerMediaPlayer.UI
             _highLightPositionResetTimer = default;
             while (_highLightPositionResetTimer < HighLightPositionResetTimer)
             {
-                while (!_mediator._needScrollAutomatically)
+                while (!_needScrollAutomatically && !_mediator._needScrollAutomatically)
                 {
                     yield return null;
                 }
+
                 _highLightPositionResetTimer += Time.deltaTime;
                 yield return null;
                 if(token.IsCancellationRequested)
                     yield break;
             }
 
+            _mediator._needScrollAutomatically = true;
             _mediator.contentTransform.anchoredPosition =
                 new Vector2(_mediator.contentTransform.anchoredPosition.x, _lyrics.ContentPosY);
         }
@@ -171,22 +172,8 @@ namespace InnerMediaPlayer.UI
             /// </summary>
             internal bool _needHighLightPositionAutoReset;
 
-            /// <summary>
-            /// 歌词所在的panel原本是关闭的吗
-            /// </summary>
-            private bool _originalActiveSelf;
-            /// <summary>
-            /// 歌词背景原本的不透明度
-            /// </summary>
-            private float _originalAlpha;
-            
             internal float VerticalSpacing => verticalLayoutGroup.spacing;
 
-            /// <summary>
-            /// 
-            /// </summary>
-            /// <param name="scrollRect"></param>
-            /// <param name="needScrollAutomatically"></param>
             internal Mediator(ScrollRect scrollRect, bool needScrollAutomatically)
             {
                 this.scrollRect = scrollRect;
