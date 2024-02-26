@@ -88,6 +88,8 @@ namespace InnerMediaPlayer.UI
             _mediator.scrollRect.movementType = ScrollRect.MovementType.Unrestricted;
             if (_mediator._needHighLightPositionAutoReset)
                 _coroutineQueue.Run(HighLightPositionReset);
+            else
+                _mediator._needScrollAutomatically = true;
             _needScrollAutomatically = true;
         }
 

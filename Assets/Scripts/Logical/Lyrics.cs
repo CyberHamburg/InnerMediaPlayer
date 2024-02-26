@@ -409,6 +409,8 @@ namespace InnerMediaPlayer.Logical
 
             _rollingLyricsId = id;
             Lyric lyric = _lyrics[id];
+            bool needHighLightPositionAutoReset = lyric.needHighLightPositionAutoReset;
+            mediator._needHighLightPositionAutoReset = needHighLightPositionAutoReset;
             List<Line> lines = lyric.lines;
             int index = 0;
             //µ÷Õû¸è´ÊË³Ðò
