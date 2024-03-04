@@ -59,7 +59,7 @@ namespace InnerMediaPlayer.Logical
         //正在高亮展示的那句歌词，在调整歌词进度时判断是否需要取消原高亮展示
         private Line _highLightLyric;
 
-        private readonly StringBuilder _timeParsePatten;
+        private static readonly StringBuilder TimeParsePatten = new StringBuilder(30);
 
         private int _rollingLyricsId;
         /// <summary>
@@ -95,7 +95,6 @@ namespace InnerMediaPlayer.Logical
             _lyrics = new Dictionary<int, Lyric>(20);
             _stopwatch = new Stopwatch();
             _minusStopwatch = new Stopwatch();
-            _timeParsePatten = new StringBuilder(30);
             this.taskQueue = taskQueue;
             this.interruptTaskQueue = interruptTaskQueue;
         }
@@ -140,9 +139,10 @@ namespace InnerMediaPlayer.Logical
 
             #endregion
 
-            ParseLyric(list, lyric, notPlayingColor, content);
+            ParseLyric(_factory, list, lyric, notPlayingColor, content);
             list.Sort();
 
+            //计算每句歌词滚动的时间间隔
             for (int i = 0; i < list.Count; i++)
             {
                 if (i == 0)
@@ -156,12 +156,12 @@ namespace InnerMediaPlayer.Logical
 
             #region 处理翻译
 
-            List<(float time, string lyric)> translationList = new List<(float time, string lyric)>();
-            ParseTranslation(translationList, translationLyric);
+            List<(float time, string lyric)> translationList = ParseTranslation(translationLyric);
             translationList.Sort();
 
             int index = 0;
             StringBuilder stringBuilder = new StringBuilder();
+            //将翻译添加到原歌词中
             foreach (Line line in list)
             {
                 if (index >= translationList.Count ||
@@ -181,11 +181,12 @@ namespace InnerMediaPlayer.Logical
         /// <summary>
         /// 将歌词解析为数据
         /// </summary>
+        /// <param name="factory"></param>
         /// <param name="list"></param>
         /// <param name="input"></param>
         /// <param name="notPlayingColor"></param>
         /// <param name="content"></param>
-        private void ParseLyric(ICollection<Line> list, string input, Color notPlayingColor, Transform content)
+        private static void ParseLyric(Line.Factory factory ,ICollection<Line> list, string input, Color notPlayingColor, Transform content)
         {
             string[] lines = input.Split('\n');
             bool isLastLineEmpty = string.IsNullOrEmpty(lines[lines.Length - 1]);
@@ -198,82 +199,16 @@ namespace InnerMediaPlayer.Logical
                 string currentLyric = timeLineAndLyric[timeLineAndLyric.Length - 1];
                 for (int j = 0; j < timeLineAndLyric.Length - 1; j++)
                 {
-                    TimeSpan timeSpan;
                     string timeLine = timeLineAndLyric[j].Replace("[", string.Empty);
-                    //匹配第一个符合格式的时间
-                    const string matchPatten = @"^(?:\d{1,2}:)?(?:\d{1,2}:)?\d{1,2}(?:\.\d{1,3})?";
-                    Match timeMatch = Regex.Match(timeLine, matchPatten, RegexOptions.None);
-                    if(!timeMatch.Success)
+                    float? currentTime = ExtractLegalTime(timeLine);
+                    if (currentTime == null)
                         continue;
-                    //提取合法时间
-                    string matchedTime = timeMatch.Value;
-                    const string hh = @"\d{1,2}";
-                    short h = 0;
-                    short m = 0;
-                    short s;
-                    short f = 0;
-                    string[] res = matchedTime.Split(':', '.');
-
-                    if (Regex.IsMatch(matchedTime, Combine(true, hh, hh, hh)))
-                    {
-                        h = short.Parse(res[0]);
-                        m = short.Parse(res[1]);
-                        s = short.Parse(res[2]);
-                        f = short.Parse(res[3]);
-                    }
-                    else if (Regex.IsMatch(matchedTime, Combine(false, hh, hh, hh)))
-                    {
-                        h = short.Parse(res[0]);
-                        m = short.Parse(res[1]);
-                        s = short.Parse(res[2]);
-                    }
-                    else if (Regex.IsMatch(matchedTime, Combine(true, hh, hh)))
-                    {
-                        m = short.Parse(res[0]);
-                        s = short.Parse(res[1]);
-                        f = short.Parse(res[2]);
-                    }
-                    else if (Regex.IsMatch(matchedTime, Combine(false, hh, hh)))
-                    {
-                        m = short.Parse(res[0]);
-                        s = short.Parse(res[1]);
-                    }
-                    else if (Regex.IsMatch(matchedTime, Combine(true, hh)))
-                    {
-                        s = short.Parse(res[0]);
-                        f = short.Parse(res[1]);
-                    }
-                    else
-                    {
-                        s = short.Parse(res[0]);
-                    }
-
-                    timeSpan = new TimeSpan(0, h, m, s, f);
-                    float currentTime = (float)timeSpan.TotalSeconds;
-
-                    // ReSharper disable once InconsistentNaming
-                    string Combine(bool needFFF, params string[] patten)
-                    {
-                        const string fff = @"\d{1,3}";
-                        _timeParsePatten.Clear();
-                        for (int k = 0; k < patten.Length - 1; k++)
-                        {
-                            _timeParsePatten.Append(patten[k]).Append(':');
-                        }
-
-                        _timeParsePatten.Append(patten[patten.Length - 1]);
-                        if (needFFF)
-                            _timeParsePatten.Append("\\.").Append(fff);
-
-                        return _timeParsePatten.ToString();
-                    }
-
-                    Line line = _factory.Create(currentTime, currentLyric, notPlayingColor, content);
+                    Line line = factory.Create(currentTime.Value, currentLyric, notPlayingColor, content);
                     list.Add(line);
                 }
             }
 
-            Line emptyLine = _factory.Create(float.MaxValue, string.Empty, notPlayingColor, content);
+            Line emptyLine = factory.Create(float.MaxValue, string.Empty, notPlayingColor, content);
             list.Add(emptyLine);
         }
 
@@ -282,9 +217,10 @@ namespace InnerMediaPlayer.Logical
         /// </summary>
         /// <param name="list"></param>
         /// <param name="input"></param>
-        private static void ParseTranslation(ICollection<(float, string)> list, string input)
+        private static List<(float time, string lyric)> ParseTranslation(string input)
         {
             string[] lines = input.Split('\n');
+            List<(float time, string lyric)> list = new List<(float time, string lyric)>(lines.Length);
             bool isLastLineEmpty = string.IsNullOrEmpty(lines[lines.Length - 1]);
             int count = isLastLineEmpty ? lines.Length - 1 : lines.Length;
             for (int i = 0; i < count; i++)
@@ -293,24 +229,91 @@ namespace InnerMediaPlayer.Logical
                 string currentLyric = timeLineAndLyric[timeLineAndLyric.Length - 1];
                 for (int j = 0; j < timeLineAndLyric.Length - 1; j++)
                 {
-                    float currentTime;
-                    try
-                    {
-                        TimeSpan timeSpan = TimeSpan.ParseExact(timeLineAndLyric[j].Replace("[", string.Empty),
-                            @"mm\:ss\.FFF", null);
-                        currentTime = (float)timeSpan.TotalSeconds;
-                    }
-                    catch (OverflowException)
-                    {
-                        currentTime = float.MaxValue;
-                    }
-                    catch (FormatException)
-                    {
+                    string timeLine = timeLineAndLyric[j].Replace("[", string.Empty);
+                    float? currentTime = ExtractLegalTime(timeLine);
+                    if (currentTime == null)
                         continue;
-                    }
-
-                    list.Add((currentTime, currentLyric));
+                    list.Add((currentTime.Value, currentLyric));
                 }
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="timeLine"></param>
+        /// <returns><para>以秒为单位</para><para>为空则不符合时间格式</para></returns>
+        private static float? ExtractLegalTime(string timeLine)
+        {
+            //匹配第一个符合格式的时间
+            const string matchPatten = @"^(?:\d{1,2}:)?(?:\d{1,2}:)?\d{1,2}(?:\.\d{1,3})?";
+            Match timeMatch = Regex.Match(timeLine, matchPatten, RegexOptions.None);
+            if (!timeMatch.Success)
+                return null;
+            //提取合法时间
+            string matchedTime = timeMatch.Value;
+            const string hh = @"\d{1,2}";
+            short h = 0;
+            short m = 0;
+            short s;
+            short f = 0;
+            string[] res = matchedTime.Split(':', '.');
+
+            if (Regex.IsMatch(matchedTime, Combine(true, hh, hh, hh)))
+            {
+                h = short.Parse(res[0]);
+                m = short.Parse(res[1]);
+                s = short.Parse(res[2]);
+                f = short.Parse(res[3]);
+            }
+            else if (Regex.IsMatch(matchedTime, Combine(false, hh, hh, hh)))
+            {
+                h = short.Parse(res[0]);
+                m = short.Parse(res[1]);
+                s = short.Parse(res[2]);
+            }
+            else if (Regex.IsMatch(matchedTime, Combine(true, hh, hh)))
+            {
+                m = short.Parse(res[0]);
+                s = short.Parse(res[1]);
+                f = short.Parse(res[2]);
+            }
+            else if (Regex.IsMatch(matchedTime, Combine(false, hh, hh)))
+            {
+                m = short.Parse(res[0]);
+                s = short.Parse(res[1]);
+            }
+            else if (Regex.IsMatch(matchedTime, Combine(true, hh)))
+            {
+                s = short.Parse(res[0]);
+                f = short.Parse(res[1]);
+            }
+            else
+            {
+                s = short.Parse(res[0]);
+            }
+
+            TimeSpan timeSpan = new TimeSpan(0, h, m, s, f);
+            float currentTime = (float)timeSpan.TotalSeconds;
+            return currentTime;
+
+            // ReSharper disable once InconsistentNaming
+            static string Combine(bool needFFF, params string[] patten)
+            {
+                const string fff = @"\d{1,3}";
+                TimeParsePatten.Clear();
+                for (int k = 0; k < patten.Length - 1; k++)
+                {
+                    TimeParsePatten.Append(patten[k]).Append(':');
+                }
+
+                TimeParsePatten.Append(patten[patten.Length - 1]);
+                if (needFFF)
+                    TimeParsePatten.Append("\\.").Append(fff);
+
+                return TimeParsePatten.ToString();
             }
         }
 
