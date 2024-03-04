@@ -361,6 +361,7 @@ namespace InnerMediaPlayer.UI
                 if (token.IsCancellationRequested)
                     return;
 
+                //TODO:加入会员用户登入后对会员歌曲播放的支持
                 bool canPlay = song.privilege.freeTrialPrivilege.cannotListenReason == null &&
                                song.privilege.freeTrialPrivilege.resConsumable == false;
                 #region 向UI赋值歌名和作家
