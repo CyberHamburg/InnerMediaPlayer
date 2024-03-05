@@ -2,10 +2,17 @@ using System.Collections.Generic;
 
 namespace InnerMediaPlayer.Models
 {
+    internal enum CannotListenReason
+    {
+        None,
+        NotVip,
+        NotPurchased
+    }
+
     public class FreeTrialPrivilege
     {
         /// <summary>
-        /// 
+        /// 真则需要购买，假则可以听（猜测）
         /// </summary>
         public bool resConsumable { get; set; }
         /// <summary>
@@ -17,9 +24,16 @@ namespace InnerMediaPlayer.Models
         /// </summary>
         public string listenType { get; set; }
         /// <summary>
-        /// 
+        /// 为空则可以播放，为1则是会员才可以播放（猜测）
         /// </summary>
         public string cannotListenReason { get; set; }
+
+        internal CannotListenReason CanPlay()
+        {
+            if (cannotListenReason == 1.ToString())
+                return CannotListenReason.NotVip;
+            return resConsumable ? CannotListenReason.NotPurchased : CannotListenReason.None;
+        }
     }
 
     public class FreeTimeTrialPrivilege
