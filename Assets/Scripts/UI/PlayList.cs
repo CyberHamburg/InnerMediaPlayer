@@ -63,15 +63,13 @@ namespace InnerMediaPlayer.UI
         internal Task IterationListAsync(Action<PlayingList.Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, CancellationToken token) =>
             _playingList.IterationListAsync(updateUI, lyric, disposedSongId, stopByForce, token);
 
-        internal Task<AudioClip> GetAudioClipAsync(int id) => _playingList.GetAudioClipAsync(id);
-
-        internal int ForceAdd(int id, string songName, string artist, AudioClip audioClip, Sprite album,
+        internal int ForceAdd(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
             RectTransform uiContent, Action<int> disposeLyric) =>
-            _playingList.ForceAdd(id, songName, artist, audioClip, album, uiContent, disposeLyric);
+            _playingList.ForceAdd(id, songName, artist, albumUrl, audioClip, album, uiContent, disposeLyric);
 
-        internal void AddToList(int id, string songName, string artist, AudioClip audioClip, Sprite album,
+        internal void AddToList(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
             RectTransform uiContent, Action<int> disposeLyric) =>
-            _playingList.AddToList(id, songName, artist, audioClip, album, uiContent, disposeLyric);
+            _playingList.AddToList(id, songName, artist, albumUrl, audioClip, album, uiContent, disposeLyric);
 
         internal bool Contains(int id) => _playingList.Contains(id);
     }
