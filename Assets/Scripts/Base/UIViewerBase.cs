@@ -274,41 +274,30 @@ namespace InnerMediaPlayer.Base
             entry.callback.AddListener(action);
             eventTrigger.triggers.Add(entry);
         }
-        #region UI_Base_Event
 
-        internal void ButtonListener(Button go, UnityAction action)
+        /// <summary>
+        /// 自动设置文字与背景框大小
+        /// </summary>
+        /// <param name="maxWidth"></param>
+        /// <param name="text"></param>
+        /// <param name="background"></param>
+        internal static void SetPreferredSize(float maxWidth, Text text, RectTransform background)
         {
-            go.onClick.AddListener(action);
+            Vector2 imageSize = background.rect.size;
+            Vector2 textSize = text.rectTransform.rect.size;
+            float heightGap = Mathf.Abs(imageSize.y - textSize.y);
+            float widthGap = Mathf.Abs(imageSize.x - textSize.x);
+            RectTransform rectTransform = text.rectTransform;
+            Vector2 originalSize = rectTransform.sizeDelta;
+            originalSize.x = text.preferredWidth < maxWidth ? text.preferredWidth : maxWidth;
+            rectTransform.sizeDelta = originalSize;
+            originalSize.y = text.preferredHeight;
+            // ReSharper disable once Unity.InefficientPropertyAccess
+            rectTransform.sizeDelta = originalSize;
+            originalSize.x += widthGap;
+            originalSize.y += heightGap;
+            background.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, originalSize.x);
+            background.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, originalSize.y);
         }
-        internal void DropDownListener(Dropdown go, UnityAction<int> action)
-        {
-            go.onValueChanged.AddListener(action);
-        }
-        internal void InputFieldValueListener(InputField go, UnityAction<string> action)
-        {
-            go.onValueChanged.AddListener(action);
-        }
-        internal void InputFieldEditListener(InputField go, UnityAction<string> action)
-        {
-            go.onEndEdit.AddListener(action);
-        }
-        internal void ScrollViewListener(ScrollRect go, UnityAction<Vector2> action)
-        {
-            go.onValueChanged.AddListener(action);
-        }
-        internal void ScrollBarListener(Scrollbar go, UnityAction<float> action)
-        {
-            go.onValueChanged.AddListener(action);
-        }
-        internal void SliderListener(Slider go, UnityAction<float> action)
-        {
-            go.onValueChanged.AddListener(action);
-        }
-        internal void ToggleListener(Toggle go, UnityAction<bool> action)
-        {
-            go.onValueChanged.AddListener(action);
-        }
-
-        #endregion
     }
 }
