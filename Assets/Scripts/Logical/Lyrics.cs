@@ -215,8 +215,8 @@ namespace InnerMediaPlayer.Logical
         /// <summary>
         /// 解析翻译为歌词数据
         /// </summary>
-        /// <param name="list"></param>
         /// <param name="input"></param>
+        /// <returns></returns>
         private static List<(float time, string lyric)> ParseTranslation(string input)
         {
             string[] lines = input.Split('\n');
@@ -244,7 +244,7 @@ namespace InnerMediaPlayer.Logical
         /// 
         /// </summary>
         /// <param name="timeLine"></param>
-        /// <returns><para>以秒为单位</para><para>为空则不符合时间格式</para></returns>
+        /// <returns><para>以秒为单位</para><para>为空则为不符合时间格式</para></returns>
         private static float? ExtractLegalTime(string timeLine)
         {
             //匹配第一个符合格式的时间
