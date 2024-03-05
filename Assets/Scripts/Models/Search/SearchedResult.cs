@@ -30,6 +30,13 @@ namespace InnerMediaPlayer.Models.Search
         /// 为空则可以播放，为1则是会员才可以播放（猜测）
         /// </summary>
         public string cannotListenReason { get; set; }
+
+        internal CannotListenReason CanPlay()
+        {
+            if (cannotListenReason == 1.ToString())
+                return CannotListenReason.NotVip;
+            return resConsumable ? CannotListenReason.NotPurchased : CannotListenReason.None;
+        }
     }
 
     public class Privilege

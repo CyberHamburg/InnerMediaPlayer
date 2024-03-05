@@ -23,8 +23,8 @@ namespace InnerMediaPlayer.Installer
             Container.Bind<Crypto>().ToSelf().AsSingle();
             Container.Bind<Cookies>().ToSelf().AsSingle();
             Container.Bind<Network>().ToSelf().AsSingle();
-            Container.Bind<TextGenerator>().ToSelf().AsSingle();
             Container.Bind<Lyrics>().ToSelf().AsSingle();
+            Container.Bind<PlaylistUtility>().ToSelf().AsSingle();
             Container.Bind<TaskQueue>().ToSelf().AsTransient();
             Container.Bind(typeof(TaskQueue<>), typeof(TaskQueue<,>), typeof(TaskQueue<,,>)).AsTransient();
 
@@ -34,7 +34,7 @@ namespace InnerMediaPlayer.Installer
 
             Container.BindFactory<float, string, Color, Transform, Lyrics.Line, Lyrics.Line.Factory>()
                 .FromPoolableMemoryPool(x => x.WithInitialSize(30));
-            Container.BindFactory<int, string, string, AudioClip, Sprite, PlayingList.Song, PlayingList.Song.Factory>()
+            Container.BindFactory<int, string, string, string, AudioClip, Sprite, PlayingList.Song, PlayingList.Song.Factory>()
                 .FromPoolableMemoryPool();
             Container.BindFactory<int, string, string, Sprite, Transform, PlayingList.UIElement, PlayingList.UIElement.Factory>()
                 .FromPoolableMemoryPool();
