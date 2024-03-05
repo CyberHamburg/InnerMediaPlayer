@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -7,6 +6,7 @@ using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
 using InnerMediaPlayer.Management;
+using InnerMediaPlayer.Models;
 using InnerMediaPlayer.Models.Search;
 using InnerMediaPlayer.Tools;
 using LitJson;
@@ -26,6 +26,7 @@ namespace InnerMediaPlayer.UI
         private bool _isSearching;
         private Network _network;
         private Crypto _crypto;
+        private PlaylistUtility _playlistUtility;
         private Cookies _cookies;
         private PrefabManager _prefabManager;
         //搜索框
@@ -43,7 +44,6 @@ namespace InnerMediaPlayer.UI
         private NowPlaying _nowPlaying;
         private PlayList _playList;
         private SongDetail[] _songItems;
-        private TaskQueue<int,bool> _iterateSongListTaskQueue;
         private TaskQueue _searchTaskQueue;
         private TaskQueue<float, float> _tipTaskQueue;
         //拼接歌手字符串需要
@@ -83,16 +83,16 @@ namespace InnerMediaPlayer.UI
         }
 
         [Inject]
-        private void Initialized(Network network, PrefabManager prefabManager, Crypto crypto, Cookies cookies,
-            TaskQueue<int, bool> playingList, TaskQueue searchTaskQueue, TaskQueue<float, float> tipsTaskQueue)
+        private void Initialized(Network network, PrefabManager prefabManager, Crypto crypto, Cookies cookies, 
+            TaskQueue searchTaskQueue, TaskQueue<float, float> tipsTaskQueue, PlaylistUtility playlistUtility)
         {
             _network = network;
             _prefabManager = prefabManager;
             _crypto = crypto;
             _cookies = cookies;
-            _iterateSongListTaskQueue = playingList;
             _searchTaskQueue = searchTaskQueue;
             _tipTaskQueue = tipsTaskQueue;
+            _playlistUtility = playlistUtility;
         }
 
         private void Awake()
@@ -168,7 +168,7 @@ namespace InnerMediaPlayer.UI
             }
 
             if (_isSearching)
-                SetPreferredSize(Searching, LimitedTipWidth);
+                SetPreferredSize(Searching);
 
             while (_isSearching)
             {
@@ -195,29 +195,10 @@ namespace InnerMediaPlayer.UI
             _tipBackground.gameObject.SetActive(false);
         }
 
-        /// <summary>
-        /// 自动设置Tip文字与背景框大小
-        /// </summary>
-        /// <param name="message"></param>
-        /// <param name="maxWidth"></param>
-        private void SetPreferredSize(string message, float maxWidth)
+        private void SetPreferredSize(string message)
         {
             _tipText.text = message;
-            Vector2 imageSize = _tipBackground.rectTransform.rect.size;
-            Vector2 textSize = _tipText.rectTransform.rect.size;
-            float heightGap = Mathf.Abs(imageSize.y - textSize.y);
-            float widthGap = Mathf.Abs(imageSize.x - textSize.x);
-            RectTransform rectTransform = _tipText.rectTransform;
-            Vector2 originalSize = rectTransform.sizeDelta;
-            originalSize.x = _tipText.preferredWidth < maxWidth ? _tipText.preferredWidth : maxWidth;
-            rectTransform.sizeDelta = originalSize;
-            originalSize.y = _tipText.preferredHeight;
-            // ReSharper disable once Unity.InefficientPropertyAccess
-            rectTransform.sizeDelta = originalSize;
-            originalSize.x += widthGap;
-            originalSize.y += heightGap;
-            _tipBackground.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, originalSize.x);
-            _tipBackground.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, originalSize.y);
+            SetPreferredSize(LimitedTipWidth, _tipText, _tipBackground.rectTransform);
         }
 
         private void CalculateDragDistance(BaseEventData eventData)
@@ -252,7 +233,7 @@ namespace InnerMediaPlayer.UI
                 //限制为第一页
                 if (page <= 0)
                 {
-                    SetPreferredSize(PageBeginningAlready, LimitedTipWidth);
+                    SetPreferredSize(PageBeginningAlready);
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
@@ -270,7 +251,7 @@ namespace InnerMediaPlayer.UI
                 //限制为最后一页
                 if (offset + limit >= _searchedSongsCount)
                 {
-                    SetPreferredSize(PageEndAlready, LimitedTipWidth);
+                    SetPreferredSize(PageEndAlready);
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
@@ -305,7 +286,7 @@ namespace InnerMediaPlayer.UI
         private async Task SearchSongAsync(CancellationToken token)
         {
             _isSearching = true;
-            SetPreferredSize(Searching, LimitedTipWidth);
+            SetPreferredSize(Searching);
             _tipTaskQueue.AddTask(0f, tipFadeOutNum, FadeOut);
             string json = await _network.PostAsync(Network.SearchUrl, true);
             SearchedResult result = JsonMapper.ToObject<SearchedResult>(json);
@@ -334,7 +315,7 @@ namespace InnerMediaPlayer.UI
             _searchedSongsCount = result.result.songCount;
 
             //对搜索结果进行相关度排序
-            SortByRelationship(result, _requestJsonData.s);
+            PlaylistUtility.SortByRelationship(result, _requestJsonData.s);
 
             //对搜索到的结果实行对数据和ui的绑定
             for (int i = 0; i < result.result.songs.Count; i++)
@@ -345,28 +326,18 @@ namespace InnerMediaPlayer.UI
                 Text artist = _songItems[i]._artist;
                 Button play = _songItems[i]._play;
                 Button addList = _songItems[i]._addList;
-                #region 下载歌曲封面并作为图片显示
 
-                Texture2D texture = await _network.GetTextureAsync(song.al.picUrl, "param", "200y200");
                 Image album = _songItems[i]._album;
-                if (texture != null)
-                {
-                    Rect rect = new Rect(0, 0, texture.width, texture.height);
-                    album.sprite = Sprite.Create(texture, rect, Vector2.one * 0.5f, 100);
-                }
-
-                #endregion
+                album.sprite = await _network.GetAlbum(song.al.picUrl);
 
                 //如果有新搜索动作产生则取消原搜索动作
                 if (token.IsCancellationRequested)
                     return;
 
-                bool canPlay = song.privilege.freeTrialPrivilege.cannotListenReason == null &&
-                               song.privilege.freeTrialPrivilege.resConsumable == false;
+                CannotListenReason reason = song.privilege.freeTrialPrivilege.CanPlay();
                 #region 向UI赋值歌名和作家
 
                 songName.text = song.name;
-                artist.text = string.Empty;
                 _expansion.Clear();
                 foreach (ArItem arItem in song.ar)
                 {
@@ -379,7 +350,7 @@ namespace InnerMediaPlayer.UI
 
                 #endregion
 
-                if (canPlay)
+                if (reason == CannotListenReason.None)
                 {
                     play.onClick.AddListener(() =>
                     {
@@ -392,11 +363,11 @@ namespace InnerMediaPlayer.UI
                         }
                         #endregion
 #endif
-                        Play(song.id, song.name, artist.text, album.sprite);
+                        Play(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
                         _addSuccessfully.Clear();
                         _addSuccessfully.Append(song.name);
                         _addSuccessfully.Append(AddSuccessfully);
-                        SetPreferredSize(_addSuccessfully.ToString(), LimitedTipWidth);
+                        SetPreferredSize(_addSuccessfully.ToString());
                         _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
                     });
                     addList.onClick.AddListener(() =>
@@ -415,20 +386,23 @@ namespace InnerMediaPlayer.UI
                             _addRepeatedly.Clear();
                             _addRepeatedly.Append(AddRepeatedly);
                             _addRepeatedly.Append(song.name);
-                            SetPreferredSize(_addRepeatedly.ToString(), LimitedTipWidth);
+                            SetPreferredSize(_addRepeatedly.ToString());
                             _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                             return;
                         }
-                        AddToList(song.id, song.name, artist.text, album.sprite);
+                        AddToList(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
                         _addSuccessfully.Clear();
                         _addSuccessfully.Append(song.name);
                         _addSuccessfully.Append(AddSuccessfully);
-                        SetPreferredSize(_addSuccessfully.ToString(), LimitedTipWidth);
+                        SetPreferredSize(_addSuccessfully.ToString());
                         _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     });
                 }
                 else
                 {
+#if UNITY_DEBUG
+                    Debug.Log($"不能播放该歌曲的原因为:{reason}");
+#endif
                     songName.color = Color.gray;
                     artist.color = Color.gray;
                     addList.gameObject.SetActive(false);
@@ -438,92 +412,19 @@ namespace InnerMediaPlayer.UI
             _isSearching = false;
         }
 
-        /// <summary>
-        /// 如果有任一歌手或名字完全匹配或部分匹配则优先展示，完全匹配的优先度最高
-        /// </summary>
-        /// <param name="result"></param>
-        /// <param name="requestString"></param>
-        private void SortByRelationship(SearchedResult result,string requestString)
-        {
-            List<SongsItem> songs = result.result.songs;
-            string lower = requestString.ToLower();
-
-            //按照优先级排序
-            (int, int)[] indexArray = new (int, int)[songs.Count];
-            for (int i = 0; i < songs.Count; i++)
-            {
-                //完全匹配优先级最高，则不考虑其他情况
-                if (lower.Equals(songs[i].name.ToLower()))
-                {
-                    indexArray[i] = (1, i);
-                    continue;
-                }
-                //包含则优先级低些
-                if (songs[i].name.ToLower().Contains(lower))
-                    indexArray[i] = (3, i);
-
-                List<ArItem> arItems = songs[i].ar;
-                //查找作者匹配度
-                foreach (ArItem arItem in arItems)
-                {
-                    if (lower.Equals(arItem.name.ToLower()))
-                    {
-                        indexArray[i] = (2, i);
-                        break;
-                    }
-                    if (arItem.name.ToLower().Contains(lower) && indexArray[i].Item1 == 0)
-                        indexArray[i] = (4, i);
-                }
-
-                if (indexArray[i].Item1 == 0)
-                    indexArray[i].Item2 = i;
-            }
-
-            int lastIndex = songs.Count - 1;
-            int startIndex = 0;
-            using IEnumerator<(int, int)> iEnumerator = indexArray.OrderBy(item => item.Item1).GetEnumerator();
-            List<SongsItem> songItems = new List<SongsItem>(songs);
-            //根据优先度排序
-            while (iEnumerator.MoveNext())
-            {
-                var (priority, index) = iEnumerator.Current;
-                if (priority == 0)
-                {
-                    songItems[lastIndex] = songs[index];
-                    lastIndex--;
-                }
-                else
-                {
-                    songItems[startIndex] = songs[index];
-                    startIndex++;
-                }
-            }
-
-            result.result.songs = songItems;
-        }
-
-        private async void Play(int id,string songName,string artist,Sprite album)
+        private async void Play(int id,string songName,string artist,string albumUrl, Sprite album)
         {
             _loadingSongsId.Add(id);
-            AudioClip clip = await _playList.GetAudioClipAsync(id);
-            await _lyric.InstantiateLyricAsync(id, album.texture);
-            int disposedSongId = _playList.ForceAdd(id, songName, artist, clip, album, _playList.ScrollRect.content, _lyric.Dispose);
-            _iterateSongListTaskQueue.AddTask(disposedSongId, true, IterationListAsync);
+            await _playlistUtility.PlayAsync(id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
             _loadingSongsId.Remove(id);
         }
 
-        private async void AddToList(int id, string songName, string artist, Sprite album)
+        private async void AddToList(int id, string songName, string artist, string albumUrl, Sprite album)
         {
             _loadingSongsId.Add(id);
-            AudioClip clip = await _playList.GetAudioClipAsync(id);
-            await _lyric.InstantiateLyricAsync(id, album.texture);
-            _playList.AddToList(id, songName, artist, clip, album, _playList.ScrollRect.content, _lyric.Dispose);
-            _iterateSongListTaskQueue.AddTask(default, false, IterationListAsync);
+            await _playlistUtility.AddAsync(true, id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
             _loadingSongsId.Remove(id);
         }
-
-        private Task IterationListAsync(int disposedSongId, bool stopByForce, CancellationToken token)
-            => _playList.IterationListAsync(_nowPlaying.UpdateUI, _lyric, disposedSongId, stopByForce, token);
 
         private void ResetSongItem()
         {
