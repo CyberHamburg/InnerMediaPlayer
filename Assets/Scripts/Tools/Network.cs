@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Logical;
+using InnerMediaPlayer.Models;
+using LitJson;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -187,6 +189,23 @@ namespace InnerMediaPlayer.Tools
             return downloadHandlerAudioClip.audioClip;
         }
 
+        internal async Task<dynamic> GetAudioClipAsync(int id)
+        {
+            //由歌曲获取到歌曲详情，包括播放的url
+            string json = await GetAsync(SongUrl, false, "id", id.ToString(), "ids", $"[{id}]", "br",
+                "999000");
+#if UNITY_EDITOR && UNITY_DEBUG
+            Debug.Log(json);
+#endif
+            SongResult songResult = JsonMapper.ToObject<SongResult>(json);
+            DataItem item = songResult.data[0];
+            CannotListenReason reason = item.freeTrialPrivilege.CanPlay();
+            if (reason != CannotListenReason.None)
+                return reason;
+            AudioClip clip = await GetAudioClipAsync(item.url, item.md5, AudioType.MPEG);
+            return clip;
+        }
+
         internal async Task<Texture2D> GetTextureAsync(string url, params string[] keyValue)
         {
             Uri uri = CombineUri(url, keyValue);
@@ -198,6 +217,16 @@ namespace InnerMediaPlayer.Tools
             if (unityWebRequest.error.Contains("404"))
                 return null;
             throw new UnityException(unityWebRequest.error);
+        }
+
+        internal async Task<Sprite> GetAlbum(string albumUrl)
+        {
+            Texture2D texture = await GetTextureAsync(albumUrl, "param", "200y200");
+            if (texture == null) 
+                return null;
+            Rect rect = new Rect(0, 0, texture.width, texture.height);
+            Sprite sprite = Sprite.Create(texture, rect, Vector2.one * 0.5f, 100);
+            return sprite;
         }
 
         internal void UpdateFormData(string key, string newValue)
