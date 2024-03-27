@@ -26,16 +26,23 @@ namespace InnerMediaPlayer.Models.Search
         /// 真则需要购买，假则可以听（猜测）
         /// </summary>
         public bool resConsumable { get; set; }
+		
+		/// <summary>
+		/// 用户是否购买了该单曲（猜测）
+		/// </summary>
+		public bool userConsumable { get; set; }
         /// <summary>
-        /// 为空则可以播放，为1则是会员才可以播放（猜测）
+        /// 为空和1则可以播放，为0则是会员才可以播放（猜测）
         /// </summary>
         public string cannotListenReason { get; set; }
 
         internal CannotListenReason CanPlay()
         {
-            if (cannotListenReason == 1.ToString())
+            if (cannotListenReason == 0.ToString() && resConsumable)
                 return CannotListenReason.NotVip;
-            return resConsumable ? CannotListenReason.NotPurchased : CannotListenReason.None;
+			if (cannotListenReason == null || cannotListenReason == 1.ToString())
+				return resConsumable ? userConsumable ? CannotListenReason.None : CannotListenReason.NotPurchased : CannotListenReason.None;
+			return CannotListenReason.Unknown;
         }
     }
 

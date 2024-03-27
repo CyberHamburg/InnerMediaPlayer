@@ -6,7 +6,8 @@ namespace InnerMediaPlayer.Models
     {
         None,
         NotVip,
-        NotPurchased
+        NotPurchased,
+		Unknown
     }
 
     public class FreeTrialPrivilege
