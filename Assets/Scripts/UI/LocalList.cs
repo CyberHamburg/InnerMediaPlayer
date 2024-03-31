@@ -19,6 +19,7 @@ namespace InnerMediaPlayer.UI
         private const float TipWidthMultiplier = 0.8f;
 
         internal const string FileDontExistTip = "本地没有读取到上次的列表文件";
+        internal const string DownloadSongError = "下载歌曲时出错";
 
         private void Start()
         {

@@ -66,6 +66,7 @@ namespace InnerMediaPlayer.Logical
             _stringBuilder.Append(text.text);
             _stringBuilder.Replace("{1}", cells.Count.ToString());
             string format = _stringBuilder.ToString();
+            bool isSucceed = true;
             for (int i = 0; i < cells.Count; i++)
             {
                 PlaylistJsonData.Cell cell = cells[i];
@@ -75,7 +76,11 @@ namespace InnerMediaPlayer.Logical
                 text.text = _stringBuilder.ToString();
                 Sprite sprite = await _network.GetAlbum(cell.PictureUrl);
                 bool playNow = i == cells.Count - 1;
-                await AddAsync(playNow, cell.Id, cell.Name, cell.Artist, cell.PictureUrl, sprite, lyric, playList, nowPlaying);
+                isSucceed &= await AddAsync(playNow, cell.Id, cell.Name, cell.Artist, cell.PictureUrl, sprite, lyric, playList, nowPlaying);
+                if (isSucceed) 
+                    continue;
+                setPreferredSize($"{LocalList.DownloadSongError}, 加载出错歌曲: Name:{cell.Name}, Id:{cell.Id}");
+                return false;
             }
 
             return true;
@@ -101,39 +106,58 @@ namespace InnerMediaPlayer.Logical
 
         }
 
-        internal async Task PlayAsync(int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying)
+        internal async Task<bool> PlayAsync(int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying)
         {
-            dynamic result = await _network.GetAudioClipAsync(id);
+            dynamic result;
+            try
+            {
+                result = await _network.GetAudioClipAsync(id);
+                await lyric.InstantiateLyricAsync(id, album.texture);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
             if (result is AudioClip clip)
             {
-                await lyric.InstantiateLyricAsync(id, album.texture);
                 int disposedSongId = playList.ForceAdd(id, songName, artist, albumUrl, clip, album, playList.ScrollRect.content, lyric.Dispose);
                 _iterateSongListTaskQueue.AddTask(disposedSongId, true, IterationListAsync);
-                return;
+                return true;
             }
 #if UNITY_DEBUG
             Debug.Log($"不能播放该歌曲的原因为:{(CannotListenReason)result}");
 #endif
 
+            return false;
             Task IterationListAsync(int disposeSongId, bool stopByForce, CancellationToken token) =>
                 playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposeSongId, stopByForce, token);
         }
 
-        internal async Task AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying)
+        internal async Task<bool> AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying)
         {
-            dynamic result = await _network.GetAudioClipAsync(id);
+            dynamic result;
+            try
+            {
+                result = await _network.GetAudioClipAsync(id);
+                await lyric.InstantiateLyricAsync(id, album.texture);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
             if (result is AudioClip clip)
             {
-                await lyric.InstantiateLyricAsync(id, album.texture);
                 playList.AddToList(id, songName, artist, albumUrl, clip, album, playList.ScrollRect.content, lyric.Dispose);
                 if (playNow)
                     _iterateSongListTaskQueue.AddTask(default, false, IterationListAsync);
-                return;
+                return true;
             }
 #if UNITY_DEBUG
             Debug.Log($"不能添加该歌曲的原因为:{(CannotListenReason)result}");
 #endif
 
+            return false;
             Task IterationListAsync(int disposedSongId, bool stopByForce, CancellationToken token) =>
                 playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposedSongId, stopByForce, token);
         }

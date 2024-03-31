@@ -49,7 +49,7 @@ namespace InnerMediaPlayer.UI
         //拼接歌手字符串需要
         private StringBuilder _expansion;
         //拼接歌名与添加成功提示语
-        private StringBuilder _addSuccessfully;
+        private StringBuilder _addSongTip;
         private StringBuilder _addRepeatedly;
         private List<int> _loadingSongsId;
         private RectTransform _canvasRectTransform;
@@ -66,6 +66,7 @@ namespace InnerMediaPlayer.UI
 
         private const float TurnThePageDistance = 350f;
         private const string AddSuccessfully = "添加成功";
+        private const string AddFailure = "添加失败,可能在此处产生了bug";
         private const string Searching = "正在搜索中";
         private const string AddRepeatedly = "已经添加过";
         private const string PageBeginningAlready = "已经是首页了";
@@ -98,7 +99,7 @@ namespace InnerMediaPlayer.UI
         private void Awake()
         {
             _expansion = new StringBuilder(35);
-            _addSuccessfully = new StringBuilder(100);
+            _addSongTip = new StringBuilder(100);
             _addRepeatedly = new StringBuilder(130);
             _loadingSongsId = new List<int>(10);
         }
@@ -349,28 +350,38 @@ namespace InnerMediaPlayer.UI
 
                 #endregion
 
-				CannotListenReason reason = song.privilege.freeTrialPrivilege.CanPlay();
+				CannotListenReason reason = song.privilege.CanPlay();
                 if (reason == CannotListenReason.None)
                 {
-                    play.onClick.AddListener(() =>
+                    play.onClick.AddListener(PlayLocalMethod);
+                    addList.onClick.AddListener(AddLocalMethod);
+
+                    async void PlayLocalMethod()
                     {
 #if UNITY_DEBUG
+
                         #region Log
+
                         bool isAdded = _loadingSongsId.Contains(song.id) || _playList.Contains(song.id);
                         if (isAdded)
                         {
                             Debug.Log($"Id为{song.id},名称为{song.name}的歌曲被强制播放");
                         }
+
                         #endregion
+
 #endif
-                        Play(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
-                        _addSuccessfully.Clear();
-                        _addSuccessfully.Append(song.name);
-                        _addSuccessfully.Append(AddSuccessfully);
-                        SetPreferredSize(_addSuccessfully.ToString());
+                        bool isSucceed = await Play(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
+                        _addSongTip.Clear();
+                        _addSongTip.Append(song.name);
+                        _addSongTip.Append(isSucceed ? AddSuccessfully : AddFailure);
+
+                        SetPreferredSize(_addSongTip.ToString());
                         _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
-                    });
-                    addList.onClick.AddListener(() =>
+
+                    }
+
+                    async void AddLocalMethod()
                     {
                         bool isAdded = _loadingSongsId.Contains(song.id) || _playList.Contains(song.id);
                         if (isAdded)
@@ -390,13 +401,15 @@ namespace InnerMediaPlayer.UI
                             _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                             return;
                         }
-                        AddToList(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
-                        _addSuccessfully.Clear();
-                        _addSuccessfully.Append(song.name);
-                        _addSuccessfully.Append(AddSuccessfully);
-                        SetPreferredSize(_addSuccessfully.ToString());
+
+                        bool isSucceed = await AddToList(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
+                        _addSongTip.Clear();
+                        _addSongTip.Append(song.name);
+                        _addSongTip.Append(isSucceed ? AddSuccessfully : AddFailure);
+
+                        SetPreferredSize(_addSongTip.ToString());
                         _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
-                    });
+                    }
                 }
                 else
                 {
@@ -412,18 +425,20 @@ namespace InnerMediaPlayer.UI
             _isSearching = false;
         }
 
-        private async void Play(int id,string songName,string artist,string albumUrl, Sprite album)
+        private async Task<bool> Play(int id,string songName,string artist,string albumUrl, Sprite album)
         {
             _loadingSongsId.Add(id);
-            await _playlistUtility.PlayAsync(id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
+            bool isSuccess = await _playlistUtility.PlayAsync(id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
             _loadingSongsId.Remove(id);
+            return isSuccess;
         }
 
-        private async void AddToList(int id, string songName, string artist, string albumUrl, Sprite album)
+        private async Task<bool> AddToList(int id, string songName, string artist, string albumUrl, Sprite album)
         {
             _loadingSongsId.Add(id);
-            await _playlistUtility.AddAsync(true, id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
+            bool isSuccess = await _playlistUtility.AddAsync(true, id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
             _loadingSongsId.Remove(id);
+            return isSuccess;
         }
 
         private void ResetSongItem()
