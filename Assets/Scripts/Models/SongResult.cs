@@ -13,7 +13,7 @@ namespace InnerMediaPlayer.Models
     public class FreeTrialPrivilege
     {
         /// <summary>
-        /// 真则需要购买，假则可以听（猜测）
+        /// 
         /// </summary>
         public bool resConsumable { get; set; }
         /// <summary>
@@ -25,16 +25,9 @@ namespace InnerMediaPlayer.Models
         /// </summary>
         public string listenType { get; set; }
         /// <summary>
-        /// 为空则可以播放，为1则是会员才可以播放（猜测）
+        /// 
         /// </summary>
         public string cannotListenReason { get; set; }
-
-        internal CannotListenReason CanPlay()
-        {
-            if (cannotListenReason == 1.ToString())
-                return CannotListenReason.NotVip;
-            return resConsumable ? CannotListenReason.NotPurchased : CannotListenReason.None;
-        }
     }
 
     public class FreeTimeTrialPrivilege
@@ -159,6 +152,29 @@ namespace InnerMediaPlayer.Models
         /// 
         /// </summary>
         public int time { get; set; }
+		
+		internal CannotListenReason CanPlay()
+        {
+            if (freeTrialPrivilege.resConsumable)
+            {
+                if (freeTrialPrivilege.cannotListenReason == 0.ToString() && fee == 1)
+                    return CannotListenReason.NotVip;
+            }
+            else
+            {
+                if (freeTrialPrivilege.cannotListenReason == 1.ToString())
+                {
+                    if (fee == 1)
+                        return CannotListenReason.NotVip;
+                    if (fee == 0 || fee == 8)
+                        return CannotListenReason.None;
+                }
+                if (freeTrialPrivilege.cannotListenReason == null && (fee == 8 || fee == 0))
+                    return CannotListenReason.None;
+            }
+
+            return CannotListenReason.Unknown;
+        }
     }
 
     public class SongResult

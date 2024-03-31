@@ -199,7 +199,7 @@ namespace InnerMediaPlayer.Tools
 #endif
             SongResult songResult = JsonMapper.ToObject<SongResult>(json);
             DataItem item = songResult.data[0];
-            CannotListenReason reason = item.freeTrialPrivilege.CanPlay();
+            CannotListenReason reason = item.CanPlay();
             if (reason != CannotListenReason.None)
                 return reason;
             AudioClip clip = await GetAudioClipAsync(item.url, item.md5, AudioType.MPEG);
