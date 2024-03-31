@@ -7,15 +7,12 @@ using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Management;
 using InnerMediaPlayer.Management.UI;
-using InnerMediaPlayer.Models;
 using InnerMediaPlayer.Models.Signal;
 using InnerMediaPlayer.UI;
-using LitJson;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Zenject;
-using Network = InnerMediaPlayer.Tools.Network;
 using Object = UnityEngine.Object;
 // ReSharper disable PossibleNullReferenceException
 // ReSharper disable AssignNullToNotNullAttribute
@@ -27,7 +24,6 @@ namespace InnerMediaPlayer.Logical
     internal class PlayingList : IInitializable, IDisposable, IEnumerable<PlayingList.Song>
     {
         private readonly AudioSource _audioSource;
-        private readonly Network _network;
         private readonly Song.Factory _songFactory;
         private readonly UIElement.Factory _uiFactory;
         private readonly UIManager _uiManager;
@@ -77,13 +73,12 @@ namespace InnerMediaPlayer.Logical
         private LinkedList<Song> PlayList { get; }
         private LinkedList<UIElement> UIList { get; }
 
-        internal PlayingList(AudioSource audioSource, Network network, Song.Factory songFactory,
+        internal PlayingList(AudioSource audioSource, Song.Factory songFactory,
             UIElement.Factory uiFactory, UIManager uiManager, PrefabManager prefabManager, SignalBus signal)
         {
             PlayList = new LinkedList<Song>();
             UIList = new LinkedList<UIElement>();
             _audioSource = audioSource;
-            _network = network;
             _songFactory = songFactory;
             _uiFactory = uiFactory;
             _uiManager = uiManager;
@@ -211,13 +206,17 @@ namespace InnerMediaPlayer.Logical
             _virtualQueueItem._element.anchoredPosition += uiContent.anchoredPosition;
         }
 
+        // ReSharper disable once UnusedParameter.Local
+#pragma warning disable IDE0060 // 删除未使用的参数
         private void BeginDrag(string songName, string artist, Sprite album, UIElement ui, BaseEventData eventData)
+#pragma warning restore IDE0060 // 删除未使用的参数
         {
             _virtualQueueItem.Reassign(songName, artist, album);
             _virtualQueueItem._element.gameObject.SetActive(true);
             _distance = ui._element.position - ui._move.position;
         }
 
+        // ReSharper disable once UnusedParameter.Local
         private void EndDrag(string artist, string songName, string albumUrl, Song song, AudioClip audioClip, Sprite album, BaseEventData eventData, UIElement ui)
         {
             _virtualQueueItem._element.gameObject.SetActive(false);
@@ -530,20 +529,6 @@ namespace InnerMediaPlayer.Logical
                 currentPlaying = PlayList.First;
                 updateUI(currentPlaying?.Value);
             }
-        }
-
-        internal async Task<AudioClip> GetAudioClipAsync(int id)
-        {
-            //由歌曲获取到歌曲详情，包括播放的url
-            string json = await _network.GetAsync(Network.SongUrl, false, "id", id.ToString(), "ids", $"[{id}]", "br",
-                "999000");
-#if UNITY_EDITOR && UNITY_DEBUG
-            Debug.Log(json);
-#endif
-            SongResult songResult = JsonMapper.ToObject<SongResult>(json);
-            DataItem item = songResult.data[0];
-            AudioClip clip = await _network.GetAudioClipAsync(item.url, item.md5, AudioType.MPEG);
-            return clip;
         }
 
         internal bool Contains(int id)
