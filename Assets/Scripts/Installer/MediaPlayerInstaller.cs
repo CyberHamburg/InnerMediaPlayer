@@ -22,7 +22,6 @@ namespace InnerMediaPlayer.Installer
             Container.BindInterfacesAndSelfTo<JsonRegister>().AsSingle();
             Container.Bind<Crypto>().ToSelf().AsSingle();
             Container.Bind<Cookies>().ToSelf().AsSingle();
-            Container.Bind<Network>().ToSelf().AsSingle();
             Container.Bind<Lyrics>().ToSelf().AsSingle();
             Container.Bind<PlaylistUtility>().ToSelf().AsSingle();
             Container.Bind<TaskQueue>().ToSelf().AsTransient();
@@ -30,6 +29,7 @@ namespace InnerMediaPlayer.Installer
 
             Container.BindInterfacesAndSelfTo<PlayingList>().AsSingle();
             Container.BindInterfacesAndSelfTo<PrefabManager>().AsSingle();
+            Container.BindInterfacesAndSelfTo<Network>().AsSingle();
             Container.Bind<GameSetting>().AsSingle().NonLazy();
 
             Container.BindFactory<float, string, Color, Transform, Lyrics.Line, Lyrics.Line.Factory>()
