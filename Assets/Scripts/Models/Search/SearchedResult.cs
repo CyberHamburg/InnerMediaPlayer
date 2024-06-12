@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 namespace InnerMediaPlayer.Models.Search
@@ -26,11 +25,11 @@ namespace InnerMediaPlayer.Models.Search
         /// 
         /// </summary>
         public bool resConsumable { get; set; }
-		
-		/// <summary>
-		/// 
-		/// </summary>
-		public bool userConsumable { get; set; }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool userConsumable { get; set; }
         /// <summary>
         /// 
         /// </summary>
@@ -39,34 +38,13 @@ namespace InnerMediaPlayer.Models.Search
 
     public class Privilege
     {
-		public int fee { get; set; }
+        public int pl { get; set; }
+
+        public int dl {  get; set; }
         /// <summary>
         /// 
         /// </summary>
         public FreeTrialPrivilege freeTrialPrivilege { get; set; }
-		
-		internal CannotListenReason CanPlay()
-        {
-			if (freeTrialPrivilege.resConsumable)
-			{
-				if (freeTrialPrivilege.cannotListenReason == 0.ToString() && fee == 1)
-					return CannotListenReason.NotVip;
-			}
-			else
-			{
-				if (freeTrialPrivilege.cannotListenReason == 1.ToString())
-				{
-					if (fee == 1)
-						return CannotListenReason.NotVip;
-					if (fee == 0 || fee == 8)
-						return CannotListenReason.None;
-				}
-				if (freeTrialPrivilege.cannotListenReason == null && (fee == 8 || fee == 0))
-					return CannotListenReason.None;
-			}
-			
-			return CannotListenReason.Unknown;
-        }
     }
 
     public class SongsItem
@@ -79,6 +57,14 @@ namespace InnerMediaPlayer.Models.Search
         /// 
         /// </summary>
         public int id { get; set; }
+
+        public int st { get; set; }
+        
+        public int cp {  get; set; }
+
+        public int t { get; set; }
+
+        public int fee { get; set; }
         /// <summary>
         /// 
         /// </summary>
@@ -91,6 +77,17 @@ namespace InnerMediaPlayer.Models.Search
         /// 
         /// </summary>
         public Privilege privilege { get; set; }
+
+        internal CannotListenReason CanPlay()
+        {
+            if (privilege == null)
+                return CannotListenReason.NoCopyright;
+            if (st < 0)
+                return CannotListenReason.NoCopyright;
+            if (privilege.pl == 0 && privilege.dl == 0)
+                return CannotListenReason.NoCopyright;
+            return CannotListenReason.None;
+        }
     }
 
 
