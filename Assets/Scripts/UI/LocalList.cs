@@ -41,7 +41,7 @@ namespace InnerMediaPlayer.UI
             {
                 _background.SetActive(false);
                 _tipBackground.gameObject.SetActive(true);
-                bool successful = await _playlistUtility.LoadAsync(_tipText, lyric, playList, nowPlaying, SetPreferredSize);
+                bool successful = await _playlistUtility.LoadFromFileAsync(_tipText, lyric, playList, nowPlaying, SetPreferredSize);
                 if (successful)
                 {
                     SetActiveFalse();
