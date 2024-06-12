@@ -9,15 +9,19 @@ using InnerMediaPlayer.Models;
 using LitJson;
 using UnityEngine;
 using UnityEngine.Networking;
+using Zenject;
 
 #pragma warning disable IDE0051
 
 namespace InnerMediaPlayer.Tools
 {
-    internal class Network
+    internal class Network : IInitializable
     {
         internal const string SearchUrl = "https://music.163.com/weapi/cloudsearch/get/web";
+        //旧url,使用get依旧可以得到请求，但无法获得会员歌曲信息
         internal const string SongUrl = "http://music.163.com/api/song/enhance/player/url";
+        //获取歌曲信息的新url
+        internal const string SongUrlPost = "https://music.163.com/weapi/song/enhance/player/url/v1";
         internal const string LoginUrl = "https://music.163.com/weapi/login/qrcode/unikey";
         internal const string LyricUrl = "https://music.163.com/weapi/song/lyric";
         internal const string QrCodeUrl = "https://music.163.com/weapi/login/qrcode/client/login";
@@ -28,6 +32,7 @@ namespace InnerMediaPlayer.Tools
         internal const string CsrfToken = "csrf_token";
         internal const string EncSeckey = "encSecKey";
 
+        private readonly SongRequest _songRequest;
         private readonly Crypto _crypto;
         private readonly Cookies _cookies;
         private readonly Dictionary<string, string> _formFields;
@@ -37,6 +42,13 @@ namespace InnerMediaPlayer.Tools
             _crypto = crypto;
             _cookies = cookies;
             _formFields = new Dictionary<string, string>(5) { { EncSeckey, _crypto._encSecKey } };
+            _songRequest = new SongRequest();
+        }
+
+        public async void Initialize()
+        {
+            Cookies.Cookie csrfToken = await _cookies.GetCsrfTokenAsync();
+            _songRequest.csrf_token = csrfToken.value;
         }
 
         internal async Task<(string json, Dictionary<string, string> headers)> PostWithHeadersAsync(string url, string json)
@@ -167,7 +179,7 @@ namespace InnerMediaPlayer.Tools
             return Encoding.UTF8.GetString(unityWebRequest.downloadHandler.data);
         }
 
-        internal async Task<AudioClip> GetAudioClipAsync(string url, string md5, AudioType audioType)
+        internal async Task<AudioClip> GetAudioClipAsync(string url, string md5, AudioType audioType, string songType = "")
         {
             using UnityWebRequest unityWebRequest = UnityWebRequestMultimedia.GetAudioClip(url, audioType);
             SetRequestHeaders(unityWebRequest, false);
@@ -182,28 +194,30 @@ namespace InnerMediaPlayer.Tools
 
             #region Test
 
-            //DownloadToDesktop(downloadHandlerAudioClip, md5);
+            //DownloadToDesktop(downloadHandlerAudioClip, md5, songType);
 
             #endregion
 
             return downloadHandlerAudioClip.audioClip;
         }
 
-        internal async Task<dynamic> GetAudioClipAsync(int id)
+        internal async Task<AudioClip> GetAudioClipAsync(SongResult songResult)
         {
+            DataItem item = songResult.data[0];
+            AudioClip clip = await GetAudioClipAsync(item.url, item.md5, item.ConvertType());
+            return clip;
+        }
+
+        internal async Task<SongResult> GetSongResultDetailAsync(int id)
+        {
+            _songRequest.ids = id.ToString();
             //由歌曲获取到歌曲详情，包括播放的url
-            string json = await GetAsync(SongUrl, false, "id", id.ToString(), "ids", $"[{id}]", "br",
-                "999000");
+            string json = await PostAsync(SongUrlPost, _songRequest, true, true);
 #if UNITY_EDITOR && UNITY_DEBUG
             Debug.Log(json);
 #endif
             SongResult songResult = JsonMapper.ToObject<SongResult>(json);
-            DataItem item = songResult.data[0];
-            CannotListenReason reason = item.CanPlay();
-            if (reason != CannotListenReason.None)
-                return reason;
-            AudioClip clip = await GetAudioClipAsync(item.url, item.md5, AudioType.MPEG);
-            return clip;
+            return songResult;
         }
 
         internal async Task<Texture2D> GetTextureAsync(string url, params string[] keyValue)
@@ -232,7 +246,11 @@ namespace InnerMediaPlayer.Tools
         internal void UpdateFormData(string key, string newValue)
         {
             if (_formFields.ContainsKey(key))
-                _formFields.Remove(key);
+            {
+                _formFields[key] = newValue;
+                return;
+            }
+
             _formFields.Add(key, newValue);
         }
 
@@ -258,11 +276,10 @@ namespace InnerMediaPlayer.Tools
             return uriBuilder.Uri;
         }
 
-        private async void DownloadToDesktop(DownloadHandlerAudioClip downloadHandler, string fileName)
+        private async void DownloadToDesktop(DownloadHandlerAudioClip downloadHandler, string fileName, string audioType)
         {
-            const string fileExtension = ".mp3";
             string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            string filePath = Path.Combine(folderPath, fileName + fileExtension);
+            string filePath = Path.Combine(folderPath, fileName + audioType);
             if(File.Exists(filePath))
                 return;
             using FileStream fileStream = File.Create(filePath, downloadHandler.data.Length);
