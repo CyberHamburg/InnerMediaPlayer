@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace InnerMediaPlayer.Models
 {
@@ -6,8 +8,8 @@ namespace InnerMediaPlayer.Models
     {
         None,
         NotVip,
-        NotPurchased,
-		Unknown
+        NoCopyright,
+        Unknown
     }
 
     public class FreeTrialPrivilege
@@ -152,28 +154,29 @@ namespace InnerMediaPlayer.Models
         /// 
         /// </summary>
         public int time { get; set; }
-		
-		internal CannotListenReason CanPlay()
+        
+        internal AudioType ConvertType()
         {
-            if (freeTrialPrivilege.resConsumable)
+            switch (type.ToLowerInvariant())
             {
-                if (freeTrialPrivilege.cannotListenReason == 0.ToString() && fee == 1)
-                    return CannotListenReason.NotVip;
+                case "mp3":
+                    return AudioType.MPEG;
+                case "mp2":
+                    return AudioType.MPEG;
+                case "wav":
+                    return AudioType.WAV;
+                case "m4a":
+                    return AudioType.MPEG;
+                default:
+                    throw new ArgumentException($"类型{type}没有被正确地转换为{nameof(AudioType)}的形式");
             }
-            else
-            {
-                if (freeTrialPrivilege.cannotListenReason == 1.ToString())
-                {
-                    if (fee == 1)
-                        return CannotListenReason.NotVip;
-                    if (fee == 0 || fee == 8)
-                        return CannotListenReason.None;
-                }
-                if (freeTrialPrivilege.cannotListenReason == null && (fee == 8 || fee == 0))
-                    return CannotListenReason.None;
-            }
+        }
 
-            return CannotListenReason.Unknown;
+        internal CannotListenReason CanPlay()
+        {
+            if (url == null)
+                return CannotListenReason.NotVip;
+            return CannotListenReason.None;
         }
     }
 
