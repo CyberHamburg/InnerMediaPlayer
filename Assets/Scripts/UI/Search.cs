@@ -65,8 +65,9 @@ namespace InnerMediaPlayer.UI
         private Color _originalArtistColor;
 
         private const float TurnThePageDistance = 350f;
+        private const string Adding = "正在加载中";
         private const string AddSuccessfully = "添加成功";
-        private const string AddFailure = "添加失败,可能在此处产生了bug";
+        private const string AddFailure = "添加失败,失败原因为";
         private const string Searching = "正在搜索中";
         private const string AddRepeatedly = "已经添加过";
         private const string PageBeginningAlready = "已经是首页了";
@@ -350,7 +351,9 @@ namespace InnerMediaPlayer.UI
 
                 #endregion
 
-				CannotListenReason reason = song.privilege.CanPlay();
+				CannotListenReason reason = song.CanPlay();
+                SongResult songDetail = await _network.GetSongResultDetailAsync(song.id);
+                reason = reason != 0 ? reason : songDetail.data[0].CanPlay();
                 if (reason == CannotListenReason.None)
                 {
                     play.onClick.AddListener(PlayLocalMethod);
@@ -358,24 +361,30 @@ namespace InnerMediaPlayer.UI
 
                     async void PlayLocalMethod()
                     {
-#if UNITY_DEBUG
-
                         #region Log
+
+#if UNITY_DEBUG
 
                         bool isAdded = _loadingSongsId.Contains(song.id) || _playList.Contains(song.id);
                         if (isAdded)
                         {
                             Debug.Log($"Id为{song.id},名称为{song.name}的歌曲被强制播放");
                         }
+#endif
 
                         #endregion
 
-#endif
-                        bool isSucceed = await Play(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
+                        //添加动作成功触发的提示语
+                        _addSongTip.Clear();
+                        _addSongTip.Append(song.name).Append(Adding);
+                        SetPreferredSize(_addSongTip.ToString());
+                        _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
+
+                        //音频添加成功提示语
+                        bool isSucceed = await Play(song.id, song.name, artist.text, song.al.picUrl, album.sprite, songDetail);
                         _addSongTip.Clear();
                         _addSongTip.Append(song.name);
-                        _addSongTip.Append(isSucceed ? AddSuccessfully : AddFailure);
-
+                        _addSongTip.Append(isSucceed ? AddSuccessfully : $"{AddFailure}{reason}");
                         SetPreferredSize(_addSongTip.ToString());
                         _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
 
@@ -402,11 +411,17 @@ namespace InnerMediaPlayer.UI
                             return;
                         }
 
-                        bool isSucceed = await AddToList(song.id, song.name, artist.text, song.al.picUrl, album.sprite);
+                        //添加动作成功触发的提示语
+                        _addSongTip.Clear();
+                        _addSongTip.Append(song.name).Append(Adding);
+                        SetPreferredSize(_addSongTip.ToString());
+                        _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
+
+                        //音频添加成功提示语
+                        bool isSucceed = await AddToList(song.id, song.name, artist.text, song.al.picUrl, album.sprite, songDetail);
                         _addSongTip.Clear();
                         _addSongTip.Append(song.name);
-                        _addSongTip.Append(isSucceed ? AddSuccessfully : AddFailure);
-
+                        _addSongTip.Append(isSucceed ? AddSuccessfully : $"{AddFailure}{reason}");
                         SetPreferredSize(_addSongTip.ToString());
                         _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     }
@@ -425,18 +440,18 @@ namespace InnerMediaPlayer.UI
             _isSearching = false;
         }
 
-        private async Task<bool> Play(int id,string songName,string artist,string albumUrl, Sprite album)
+        private async Task<bool> Play(int id,string songName,string artist,string albumUrl, Sprite album, SongResult songResult)
         {
             _loadingSongsId.Add(id);
-            bool isSuccess = await _playlistUtility.PlayAsync(id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
+            bool isSuccess = await _playlistUtility.PlayAsync(id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying, songResult);
             _loadingSongsId.Remove(id);
             return isSuccess;
         }
 
-        private async Task<bool> AddToList(int id, string songName, string artist, string albumUrl, Sprite album)
+        private async Task<bool> AddToList(int id, string songName, string artist, string albumUrl, Sprite album, SongResult songResult)
         {
             _loadingSongsId.Add(id);
-            bool isSuccess = await _playlistUtility.AddAsync(true, id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying);
+            bool isSuccess = await _playlistUtility.AddAsync(true, id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying, songResult);
             _loadingSongsId.Remove(id);
             return isSuccess;
         }
