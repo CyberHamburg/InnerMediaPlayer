@@ -49,7 +49,7 @@ namespace InnerMediaPlayer.Logical
             return content;
         }
 
-        internal async Task<bool> LoadAsync(Text text, Lyric lyric, PlayList playList, NowPlaying nowPlaying, Action<string> setPreferredSize)
+        internal async Task<bool> LoadFromFileAsync(Text text, Lyric lyric, PlayList playList, NowPlaying nowPlaying, Action<string> setPreferredSize)
         {
             string json = await LoadFromFileAsync(_fileLocation);
             if (string.IsNullOrEmpty(json))
@@ -76,10 +76,11 @@ namespace InnerMediaPlayer.Logical
                 text.text = _stringBuilder.ToString();
                 Sprite sprite = await _network.GetAlbum(cell.PictureUrl);
                 bool playNow = i == cells.Count - 1;
-                isSucceed &= await AddAsync(playNow, cell.Id, cell.Name, cell.Artist, cell.PictureUrl, sprite, lyric, playList, nowPlaying);
+                SongResult songResult = await _network.GetSongResultDetailAsync(cell.Id);
+                isSucceed &= await AddAsync(playNow, cell.Id, cell.Name, cell.Artist, cell.PictureUrl, sprite, lyric, playList, nowPlaying, songResult);
                 if (isSucceed) 
                     continue;
-                setPreferredSize($"{LocalList.DownloadSongError}, 加载出错歌曲: Name:{cell.Name}, Id:{cell.Id}");
+                setPreferredSize($"{LocalList.DownloadSongError}, 加载此歌曲时出错: Name:{cell.Name}, Id:{cell.Id}");
                 return false;
             }
 
@@ -106,12 +107,12 @@ namespace InnerMediaPlayer.Logical
 
         }
 
-        internal async Task<bool> PlayAsync(int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying)
+        internal async Task<bool> PlayAsync(int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying, SongResult songResult)
         {
-            dynamic result;
+            AudioClip clip;
             try
             {
-                result = await _network.GetAudioClipAsync(id);
+                clip = await _network.GetAudioClipAsync(songResult);
                 await lyric.InstantiateLyricAsync(id, album.texture);
             }
             catch (Exception)
@@ -119,14 +120,14 @@ namespace InnerMediaPlayer.Logical
                 return false;
             }
 
-            if (result is AudioClip clip)
+            if (clip != null)
             {
                 int disposedSongId = playList.ForceAdd(id, songName, artist, albumUrl, clip, album, playList.ScrollRect.content, lyric.Dispose);
                 _iterateSongListTaskQueue.AddTask(disposedSongId, true, IterationListAsync);
                 return true;
             }
 #if UNITY_DEBUG
-            Debug.Log($"不能播放该歌曲的原因为:{(CannotListenReason)result}");
+            Debug.Log($"发生未知错误导致不能播放:{songName}");
 #endif
 
             return false;
@@ -134,12 +135,12 @@ namespace InnerMediaPlayer.Logical
                 playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposeSongId, stopByForce, token);
         }
 
-        internal async Task<bool> AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying)
+        internal async Task<bool> AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying, SongResult songResult)
         {
-            dynamic result;
+            AudioClip result;
             try
             {
-                result = await _network.GetAudioClipAsync(id);
+                result = await _network.GetAudioClipAsync(songResult);
                 await lyric.InstantiateLyricAsync(id, album.texture);
             }
             catch (Exception)
@@ -154,7 +155,7 @@ namespace InnerMediaPlayer.Logical
                 return true;
             }
 #if UNITY_DEBUG
-            Debug.Log($"不能添加该歌曲的原因为:{(CannotListenReason)result}");
+            Debug.Log($"发生未知错误导致不能播放:{songName}");
 #endif
 
             return false;
