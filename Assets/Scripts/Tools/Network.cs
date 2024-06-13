@@ -204,7 +204,7 @@ namespace InnerMediaPlayer.Tools
         internal async Task<AudioClip> GetAudioClipAsync(SongResult songResult)
         {
             DataItem item = songResult.data[0];
-            AudioClip clip = await GetAudioClipAsync(item.url, item.md5, item.ConvertType());
+            AudioClip clip = await GetAudioClipAsync(item.url, item.md5, item.ConvertType(), item.type);
             return clip;
         }
 
@@ -279,7 +279,7 @@ namespace InnerMediaPlayer.Tools
         private async void DownloadToDesktop(DownloadHandlerAudioClip downloadHandler, string fileName, string audioType)
         {
             string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            string filePath = Path.Combine(folderPath, fileName + audioType);
+            string filePath = Path.Combine(folderPath, $"{fileName}.{audioType}");
             if(File.Exists(filePath))
                 return;
             using FileStream fileStream = File.Create(filePath, downloadHandler.data.Length);
