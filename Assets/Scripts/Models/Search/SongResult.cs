@@ -166,9 +166,10 @@ namespace InnerMediaPlayer.Models
                 case "wav":
                     return AudioType.WAV;
                 case "m4a":
-                    return AudioType.MPEG;
+                    //暂时未做m4a的转码
+                    return AudioType.UNKNOWN;
                 default:
-                    throw new ArgumentException($"类型{type}没有被正确地转换为{nameof(AudioType)}的形式");
+                    return AudioType.UNKNOWN;
             }
         }
 
