@@ -137,17 +137,17 @@ namespace InnerMediaPlayer.Logical
 
         internal async Task<bool> AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying, SongResult songResult)
         {
-            AudioClip result;
+            AudioClip clip;
             try
             {
-                result = await _network.GetAudioClipAsync(songResult);
+                clip = await _network.GetAudioClipAsync(songResult);
                 await lyric.InstantiateLyricAsync(id, album.texture);
             }
             catch (Exception)
             {
                 return false;
             }
-            if (result is AudioClip clip)
+            if (clip != null)
             {
                 playList.AddToList(id, songName, artist, albumUrl, clip, album, playList.ScrollRect.content, lyric.Dispose);
                 if (playNow)
