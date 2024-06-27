@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace InnerMediaPlayer.Models.Search
 {
 
-    public class ArItem
+    public class Artist
     {
         /// <summary>
         /// 
@@ -11,7 +11,7 @@ namespace InnerMediaPlayer.Models.Search
         public string name { get; set; }
     }
 
-    public class Al
+    public class Album
     {
         /// <summary>
         /// 
@@ -19,35 +19,14 @@ namespace InnerMediaPlayer.Models.Search
         public string picUrl { get; set; }
     }
 
-    public class FreeTrialPrivilege
-    {
-        /// <summary>
-        /// 
-        /// </summary>
-        public bool resConsumable { get; set; }
-        
-        /// <summary>
-        /// 
-        /// </summary>
-        public bool userConsumable { get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public string cannotListenReason { get; set; }
-    }
-
     public class Privilege
     {
         public int pl { get; set; }
 
         public int dl {  get; set; }
-        /// <summary>
-        /// 
-        /// </summary>
-        public FreeTrialPrivilege freeTrialPrivilege { get; set; }
     }
 
-    public class SongsItem
+    public class SongsItem : ISongBindable
     {
         /// <summary>
         /// 
@@ -59,26 +38,21 @@ namespace InnerMediaPlayer.Models.Search
         public int id { get; set; }
 
         public int st { get; set; }
-        
-        public int cp {  get; set; }
 
-        public int t { get; set; }
-
-        public int fee { get; set; }
         /// <summary>
         /// 
         /// </summary>
-        public List<ArItem> ar { get; set; }
+        public List<Artist> ar { get; set; }
         /// <summary>
         /// 
         /// </summary>
-        public Al al { get; set; }
+        public Album al { get; set; }
         /// <summary>
         /// 
         /// </summary>
         public Privilege privilege { get; set; }
 
-        internal CannotListenReason CanPlay()
+        public CannotListenReason CanPlay()
         {
             if (privilege == null)
                 return CannotListenReason.NoCopyright;
@@ -90,6 +64,29 @@ namespace InnerMediaPlayer.Models.Search
         }
     }
 
+    public class ArtistItem : IRelationshipSortable
+    {
+        public int id { get; set; }
+
+        public string name { get; set; }
+
+        public string picUrl { get; set; }
+
+        public List<Artist> ar { get; set; }
+    }
+
+    public interface IRelationshipSortable
+    {
+        public string name { get; set; }
+        public List<Artist> ar { get; set; }
+    }
+
+    public interface ISongBindable : IRelationshipSortable
+    {
+        public int id { get; set; }
+        public Album al { get; set; }
+        public CannotListenReason CanPlay();
+    }
 
     public class Result
     {
@@ -97,10 +94,14 @@ namespace InnerMediaPlayer.Models.Search
         /// 
         /// </summary>
         public List<SongsItem> songs { get; set; }
+
+        public List<ArtistItem> artists { get; set; }
         /// <summary>
         /// 
         /// </summary>
         public int songCount { get; set; }
+
+        public int artistCount { get; set; }
     }
 
     public class SearchedResult
