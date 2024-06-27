@@ -1,14 +1,14 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace InnerMediaPlayer.Models
 {
-    internal enum CannotListenReason
+    public enum CannotListenReason
     {
         None,
         NotVip,
         NoCopyright,
+        NotContainRequestSongEncoderType,
         Unknown
     }
 
@@ -175,6 +175,8 @@ namespace InnerMediaPlayer.Models
 
         internal CannotListenReason CanPlay()
         {
+            if (url == null && code == 404)
+                return CannotListenReason.NotContainRequestSongEncoderType;
             if (url == null)
                 return CannotListenReason.NotVip;
             return CannotListenReason.None;
