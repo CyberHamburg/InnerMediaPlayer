@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,7 +12,9 @@ using InnerMediaPlayer.Tools;
 using InnerMediaPlayer.UI;
 using LitJson;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
+using static UnityEngine.Networking.UnityWebRequest;
 using Network = InnerMediaPlayer.Tools.Network;
 
 namespace InnerMediaPlayer.Logical
@@ -74,7 +77,7 @@ namespace InnerMediaPlayer.Logical
                 _stringBuilder.Append(format);
                 _stringBuilder.Replace("{0}", (i + 1).ToString());
                 text.text = _stringBuilder.ToString();
-                Sprite sprite = await _network.GetAlbum(cell.PictureUrl);
+                Sprite sprite = await _network.GetPictureAsync(cell.PictureUrl);
                 bool playNow = i == cells.Count - 1;
                 SongResult songResult = await _network.GetSongResultDetailAsync(cell.Id);
                 isSucceed &= await AddAsync(playNow, cell.Id, cell.Name, cell.Artist, cell.PictureUrl, sprite, lyric, playList, nowPlaying, songResult);
@@ -168,28 +171,31 @@ namespace InnerMediaPlayer.Logical
         /// </summary>
         /// <param name="result"></param>
         /// <param name="requestString"></param>
-        internal static void SortByRelationship(SearchedResult result, string requestString)
+        internal static List<T> SortByRelationship<T>(IList<T> list, string requestString) where T : IRelationshipSortable
         {
-            List<SongsItem> songs = result.result.songs;
             string lower = requestString.ToLower();
-
             //按照优先级排序
-            (int, int)[] indexArray = new (int, int)[songs.Count];
-            for (int i = 0; i < songs.Count; i++)
+            (int, int)[] indexArray = new (int, int)[list.Count];
+            for (int i = 0; i < list.Count; i++)
             {
                 //完全匹配优先级最高，则不考虑其他情况
-                if (lower.Equals(songs[i].name.ToLower()))
+                if (lower.Equals(list[i].name.ToLower()))
                 {
                     indexArray[i] = (1, i);
                     continue;
                 }
                 //包含则优先级低些
-                if (songs[i].name.ToLower().Contains(lower))
+                if (list[i].name.ToLower().Contains(lower))
                     indexArray[i] = (3, i);
 
-                List<ArItem> arItems = songs[i].ar;
+                List<Artist> arItems = list[i].ar;
+                if (arItems == null || arItems.Count == 0)
+                {
+                    indexArray[i].Item2 = i;
+                    continue;
+                }
                 //查找作者匹配度
-                foreach (ArItem arItem in arItems)
+                foreach (Artist arItem in arItems)
                 {
                     if (lower.Equals(arItem.name.ToLower()))
                     {
@@ -204,27 +210,26 @@ namespace InnerMediaPlayer.Logical
                     indexArray[i].Item2 = i;
             }
 
-            int lastIndex = songs.Count - 1;
+            int lastIndex = list.Count - 1;
             int startIndex = 0;
             using IEnumerator<(int, int)> iEnumerator = indexArray.OrderBy(item => item.Item1).GetEnumerator();
-            List<SongsItem> songItems = new List<SongsItem>(songs);
-            //根据优先度排序
+            List<T> items = new List<T>(list);
             while (iEnumerator.MoveNext())
             {
                 var (priority, index) = iEnumerator.Current;
                 if (priority == 0)
                 {
-                    songItems[lastIndex] = songs[index];
+                    items[lastIndex] = list[index];
                     lastIndex--;
                 }
                 else
                 {
-                    songItems[startIndex] = songs[index];
+                    items[startIndex] = list[index];
                     startIndex++;
                 }
             }
 
-            result.result.songs = songItems;
+            return items;
         }
     }
 }
