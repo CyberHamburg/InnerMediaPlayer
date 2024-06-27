@@ -24,6 +24,8 @@ namespace InnerMediaPlayer.Tools
         internal const string SongUrlPost = "https://music.163.com/weapi/song/enhance/player/url/v1";
         internal const string LoginUrl = "https://music.163.com/weapi/login/qrcode/unikey";
         internal const string LyricUrl = "https://music.163.com/weapi/song/lyric";
+        internal const string ArtistUrl = "https://music.163.com/artist";
+        internal const string AlbumUrl = "https://music.163.com/album";
         internal const string QrCodeUrl = "https://music.163.com/weapi/login/qrcode/client/login";
         internal const string QrCodeGenerateUrl = "http://music.163.com/login";
         internal const string LoginRefreshUrl = "https://music.163.com/weapi/login/token/refresh";
@@ -233,9 +235,9 @@ namespace InnerMediaPlayer.Tools
             throw new UnityException(unityWebRequest.error);
         }
 
-        internal async Task<Sprite> GetAlbum(string albumUrl)
+        internal async Task<Sprite> GetPictureAsync(string picUrl)
         {
-            Texture2D texture = await GetTextureAsync(albumUrl, "param", "200y200");
+            Texture2D texture = await GetTextureAsync(picUrl, "param", "200y200");
             if (texture == null) 
                 return null;
             Rect rect = new Rect(0, 0, texture.width, texture.height);
