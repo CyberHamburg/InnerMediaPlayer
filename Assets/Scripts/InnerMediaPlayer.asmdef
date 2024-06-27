@@ -16,7 +16,8 @@
         "QRCoder.dll",
         "QRCoder.Unity.dll",
         "System.Drawing.Common.dll",
-        "Zenject-usage.dll"
+        "Zenject-usage.dll",
+        "HtmlAgilityPack.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [
