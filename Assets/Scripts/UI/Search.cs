@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
@@ -54,12 +53,7 @@ namespace InnerMediaPlayer.UI
         private InputField _searchContainer;
         //放搜索结果的scrollRect组件
         private ScrollRect _resultContainer;
-        //搜索结果的容器
-        private RectTransform _songResultContainer;
-        private RectTransform _artistResultContainer;
-        private RectTransform _artistSongContainer;
         private GameObject _nullResult;
-        private Button _returnLastPanel;
         private Image _tipBackground;
         private Text _tipText;
         //存放提示语的文字和背景的数组
@@ -80,8 +74,11 @@ namespace InnerMediaPlayer.UI
         private List<int> _loadingSongsId;
         private RectTransform _canvasRectTransform;
         private Dropdown _searchTypeDropDown;
-        private SongItemConfig _songItemConfig;
-        private ArtistItemConfig _artistItemConfig;
+
+        [Header("Display item config")]
+        [SerializeField] private SongItemConfig _songItemConfig;
+        [SerializeField] private UIItemConfig _artistItemConfig;
+        [SerializeField] private UIItemConfig _albumItemConfig;
         private HtmlDocument _htmlDocument;
         private float _currentPageDistance;
         private int _searchedResultCounter;
@@ -91,6 +88,7 @@ namespace InnerMediaPlayer.UI
         private WhereNullResult _whereNullResult;
         private int _enabledSongsCount;
         private int _enabledArtistsCount;
+        private int _enabledAlbumsCount;
 
         [Header("Tip Configs")]
         [SerializeField] [Range(0f, 1f)] private float tipWidthMultiplier;
@@ -110,6 +108,8 @@ namespace InnerMediaPlayer.UI
         private const string PageBeginningAlready = "已经是首页了";
         private const string PageEndAlready = "已经是末页了";
         private const string NullResult = "此界面下没有搜索结果";
+        private const string SearchingNoInterrupt = "请搜索完之后再切换";
+        private const string ReturnLastLevel = "请先返回上一级后再设置搜索模式";
 
         //提示框最大宽度将被限制为此数值
         private float LimitedTipWidth
@@ -141,8 +141,6 @@ namespace InnerMediaPlayer.UI
             _addSongTip = new StringBuilder(100);
             _addRepeatedly = new StringBuilder(130);
             _loadingSongsId = new List<int>(10);
-            _songItemConfig = new SongItemConfig();
-            _artistItemConfig = new ArtistItemConfig();
             _htmlDocument = new HtmlDocument();
         }
 
@@ -155,11 +153,14 @@ namespace InnerMediaPlayer.UI
             _searchTypeDropDown = FindGameObjectInList("Type", "Search").GetComponent<Dropdown>();
             _searchContainer = FindGameObjectInList("InputField", "Search").GetComponent<InputField>();
             _resultContainer = FindGameObjectInList("Display", null).GetComponent<ScrollRect>();
-            _songResultContainer = FindGameObjectInList("SongContent", "Display").GetComponent<RectTransform>();
-            _artistResultContainer = FindGameObjectInList("ArtistContent", "Display").GetComponent<RectTransform>();
-            _artistSongContainer = FindGameObjectInList("ArtistSongContent", "Display").GetComponent<RectTransform>();
+            _songItemConfig._songResultContainer = FindGameObjectInList("SongContent", "Display").GetComponent<RectTransform>();
+            _artistItemConfig._resultContainer = FindGameObjectInList("ArtistContent", "Display").GetComponent<RectTransform>();
+            _artistItemConfig._songContainer = FindGameObjectInList("ArtistSongContent", "Display").GetComponent<RectTransform>();
+            _albumItemConfig._resultContainer = FindGameObjectInList("AlbumContent", "Display").GetComponent<RectTransform>();
+            _albumItemConfig._songContainer = FindGameObjectInList("AlbumSongContent", "Display").GetComponent<RectTransform>();
             _nullResult = FindGameObjectInList("NullResult", null);
-            _returnLastPanel = FindGameObjectInList("ReturnLastPanel", "ArtistSongContent").GetComponent<Button>();
+            _artistItemConfig._returnLastPanel = FindGameObjectInList("ReturnLastPanel", "ArtistSongContent").GetComponent<Button>();
+            _albumItemConfig._returnLastPanel = FindGameObjectInList("ReturnLastPanel", "AlbumSongContent").GetComponent<Button>();
             _tipBackground = FindGameObjectInList("Tip", null).GetComponent<Image>();
             _tipText = _tipBackground.GetComponentInChildren<Text>(true);
             _graphics = new Graphic[] { _tipText, _tipBackground };
@@ -173,27 +174,16 @@ namespace InnerMediaPlayer.UI
             _requestJsonData = new SearchRequestData(cookie.value);
             int limitNumEveryPage = int.Parse(_requestJsonData.limit);
             _songItemConfig._songItems = new List<SongDetail>(limitNumEveryPage);
-            _artistItemConfig._artistItems = new ArtistDetail[limitNumEveryPage];
-            _artistItemConfig._songsItems = new List<SongDetail>(limitNumEveryPage);
-            ExpandSongUINum(limitNumEveryPage, _songItemConfig._songItems, _songResultContainer);
-            ExpandSongUINum(limitNumEveryPage, _artistItemConfig._songsItems, _artistSongContainer);
-            for (int i = 0; i < limitNumEveryPage; i++)
-            {
-                ArtistDetail artist = new ArtistDetail()
-                {
-                    _root = Instantiate(_prefabManager["ArtistItem"], _artistResultContainer)
-                };
-                artist._artist = artist._root.transform.Find("Artist").GetComponent<Image>();
-                artist._textMask = artist._root.transform.Find("TextDisplayArea").GetComponent<RectTransform>();
-                artist._click = artist._root.transform.Find("Detail").GetComponent<Button>();
-                artist._artistText = artist._textMask.Find("Text").GetComponent<Text>();
-                _artistItemConfig._artistItems[i] = artist;
-            }
+            ExpandSongUINum(limitNumEveryPage, _songItemConfig._songItems, _songItemConfig._songResultContainer);
+            InitializeItemConfig(limitNumEveryPage, "DisplayCellItem", _albumItemConfig);
+            InitializeItemConfig(limitNumEveryPage, "DisplayCellItem", _artistItemConfig);
 
             _songItemConfig._songNameOriginalColor = _songItemConfig._songItems[0]._songName.color;
             _songItemConfig._artistOriginalColor = _songItemConfig._songItems[0]._artist.color;
             _songItemConfig._songNameOriginalSizeX = _songItemConfig._songItems[0]._songName.rectTransform.rect.width;
             _songItemConfig._artistOriginalSizeX = _songItemConfig._songItems[0]._artist.rectTransform.rect.width;
+            _artistItemConfig._textOriginalSizeX = _artistItemConfig._items[0]._text.rectTransform.rect.width;
+            _albumItemConfig._textOriginalSizeX = _albumItemConfig._items[0]._text.rectTransform.rect.width;
         }
 
         private void OnDestroy()
@@ -201,11 +191,40 @@ namespace InnerMediaPlayer.UI
             _searchContainer.onEndEdit.RemoveAllListeners();
         }
 
+        private void InitializeItemConfig(int limitNumEveryPage, string prefabName, UIItemConfig itemConfig)
+        {
+            itemConfig._items = new CellDetail[limitNumEveryPage];
+            itemConfig._songsItems = new List<SongDetail>(limitNumEveryPage);
+            ExpandSongUINum(limitNumEveryPage, itemConfig._songsItems, itemConfig._songContainer);
+            for (int i = 0; i < limitNumEveryPage; i++)
+            {
+                CellDetail cellDetail = new CellDetail()
+                {
+                    _root = Instantiate(_prefabManager[prefabName], itemConfig._resultContainer)
+                };
+                cellDetail._image = cellDetail._root.transform.Find("Image").GetComponent<Image>();
+                cellDetail._textMask = cellDetail._root.transform.Find("TextDisplayArea").GetComponent<RectTransform>();
+                cellDetail._click = cellDetail._root.transform.Find("Detail").GetComponent<Button>();
+                cellDetail._text = cellDetail._textMask.Find("Text").GetComponent<Text>();
+                itemConfig._items[i] = cellDetail;
+            }
+        }
+
         private void ChooseSearchType(int index)
         {
             if (_isSearching)
             {
                 _searchTypeDropDown.value = (int)_searchType;
+                SetPreferredSize(SearchingNoInterrupt);
+                _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                return;
+            }
+
+            if (_artistItemConfig._songContainer.gameObject.activeInHierarchy || _albumItemConfig._songContainer.gameObject.activeInHierarchy)
+            {
+                _searchTypeDropDown.value = (int)_searchType;
+                SetPreferredSize(ReturnLastLevel);
+                _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                 return;
             }
 
@@ -214,9 +233,10 @@ namespace InnerMediaPlayer.UI
                 case 0:
                     _requestJsonData.type = "1";
                     _searchType = SearchType.Song;
-                    _songResultContainer.gameObject.SetActive(true);
-                    _artistResultContainer.gameObject.SetActive(false);
-                    _resultContainer.content = _songResultContainer;
+                    _songItemConfig._songResultContainer.gameObject.SetActive(true);
+                    _artistItemConfig._resultContainer.gameObject.SetActive(false);
+                    _albumItemConfig._resultContainer.gameObject.SetActive(false);
+                    _resultContainer.content = _songItemConfig._songResultContainer;
                     for (int i = 0; i < _enabledSongsCount; i++)
                     {
                         Text songName = _songItemConfig._songItems[i]._songName;
@@ -231,31 +251,35 @@ namespace InnerMediaPlayer.UI
                     if (SetActive(WhereNullResult.Album, false)) break;
                     break;
                 case 1:
-                    _requestJsonData.type = "100";
-                    _searchType = SearchType.Artist;
-                    _songResultContainer.gameObject.SetActive(false);
-                    _artistResultContainer.gameObject.SetActive(true);
-                    _resultContainer.content = _artistResultContainer;
-                    for (int i = 0; i < _enabledArtistsCount; i++)
-                    {
-                        Text artistText = _artistItemConfig._artistItems[i]._artistText;
-                        RectTransform textMask = _artistItemConfig._artistItems[i]._textMask;
-                        artistText.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, artistText, textMask));
-                    }
-
+                    SetSearchType("100", SearchType.Artist, _enabledArtistsCount, _artistItemConfig, _albumItemConfig);
                     if (SetActive(WhereNullResult.Artist, true)) break;
                     if (SetActive(WhereNullResult.Song, false)) break;
                     if (SetActive(WhereNullResult.Album, false)) break;
                     break;
                 case 2:
-                    _requestJsonData.type= "10";
-                    _searchType = SearchType.Album;
+                    SetSearchType("10", SearchType.Album, _enabledAlbumsCount, _albumItemConfig, _artistItemConfig);
                     if (SetActive(WhereNullResult.Album, true)) break;
                     if (SetActive(WhereNullResult.Song, false)) break;
                     if (SetActive(WhereNullResult.Artist, false)) break;
                     break;
                 default:
                     throw new IndexOutOfRangeException();
+            }
+
+            void SetSearchType(string type, SearchType searchType, int enabledCount, UIItemConfig enable, UIItemConfig disable)
+            {
+                _requestJsonData.type = type;
+                _searchType = searchType;
+                _songItemConfig._songResultContainer.gameObject.SetActive(false);
+                disable._resultContainer.gameObject.SetActive(false);
+                enable._resultContainer.gameObject.SetActive(true);
+                _resultContainer.content = enable._resultContainer;
+                for (int i = 0; i < enabledCount; i++)
+                {
+                    Text text = enable._items[i]._text;
+                    RectTransform textMask = enable._items[i]._textMask;
+                    text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
+                }
             }
 
             bool SetActive(WhereNullResult type, bool activeSelf)
@@ -298,8 +322,9 @@ namespace InnerMediaPlayer.UI
         }
 
         //搜索动作特殊计算
-        private async Task FadeOut(float displayTimer, float fadeOutTimeInterval, CancellationToken token)
+        private async Task FadeOut(float displayTimer, float fadeOutTimeInterval, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
+            progress.Report(TaskStatus.Running);
             _tipBackground.gameObject.SetActive(true);
             foreach (Graphic graphic in _graphics)
             {
@@ -313,26 +338,40 @@ namespace InnerMediaPlayer.UI
                 await new WaitForSeconds(Time.fixedDeltaTime);
                 displayTimer -= Time.fixedDeltaTime;
                 if (token.IsCancellationRequested)
+                {
+                    token.CallBack();
+                    progress.Report(TaskStatus.Canceled);
                     return;
+                }
             }
 
             if (_isSearching)
                 SetPreferredSize(Searching);
 
+            Debug.Log("wait for searching done");
             while (_isSearching)
             {
                 await Task.Yield();
                 if (token.IsCancellationRequested)
+                {
+                    token.CallBack();
+                    progress.Report(TaskStatus.Canceled);
                     return;
+                }
             }
 
+            Debug.Log("beginning fade");
             float fadeOutTimer = fadeOutTimeInterval;
             while (fadeOutTimer > 0f)
             {
                 await new WaitForSeconds(Time.fixedDeltaTime);
                 fadeOutTimer -= Time.fixedDeltaTime;
                 if (token.IsCancellationRequested)
+                {
+                    token.CallBack();
+                    progress.Report(TaskStatus.Canceled);
                     return;
+                }
                 foreach (Graphic graphic in _graphics)
                 {
                     Color target = graphic.color;
@@ -342,6 +381,7 @@ namespace InnerMediaPlayer.UI
             }
 
             _tipBackground.gameObject.SetActive(false);
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         private void SetPreferredSize(string message)
@@ -372,8 +412,6 @@ namespace InnerMediaPlayer.UI
         /// <param name="eventData"></param>
         private void JudgeIfTurnThePage(BaseEventData eventData)
         {
-            if (_searchType != SearchType.Song)
-                return;
             //向上delta为负，所以用负值判断翻上一页
             if (-_currentPageDistance > TurnThePageDistance)
             {
@@ -435,7 +473,10 @@ namespace InnerMediaPlayer.UI
                     _artistItemConfig._requestKeywords = str;
                     break;
                 case SearchType.Album:
-                    return;
+                    if (str == _albumItemConfig._requestKeywords)
+                        return;
+                    _albumItemConfig._requestKeywords = str;
+                    break;
                 default:
                     break;
             }
@@ -450,9 +491,23 @@ namespace InnerMediaPlayer.UI
             _searchTaskQueue.AddTask(SearchAsync);
         }
 
-        private async Task SearchAsync(CancellationToken token)
+        private async Task SearchAsync(CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
-            SearchedResult result = await GetSearchedResult();
+            progress.Report(TaskStatus.Running);
+            SearchedResult result;
+            try
+            {
+                result = await GetSearchedResult();
+            }
+            catch (Exception e)
+            {
+                _isSearching = false;
+                SetPreferredSize(e.Message);
+                _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                progress.Report(TaskStatus.Faulted);
+                return;
+            }
+            
             switch (_searchType)
             {
                 case SearchType.Song:
@@ -465,35 +520,57 @@ namespace InnerMediaPlayer.UI
                         break;
                     }
 
+                    _requestJsonData.limit = _songItemConfig._displayNumPerPage.ToString();
                     ResetSongItem(_songItemConfig._songItems, true);
                     _searchedResultCounter = result.result.songCount;
                     result.result.songs = PlaylistUtility.SortByRelationship(result.result.songs, _requestJsonData.s);
                     List<ISongBindable> relationshipSortables = result.result.songs.Cast<ISongBindable>().ToList();
                     _enabledSongsCount = relationshipSortables.Count;
-                    await BindSongData(relationshipSortables, _songItemConfig._songItems, token);
+                    await BindSongData(relationshipSortables, _songItemConfig._songItems, token, progress);
+                    progress.Report(TaskStatus.Running);
                     break;
                 case SearchType.Artist:
                     //如果搜索到是一些屏蔽词或者没有搜索结果的话，提示为空并返回结果
                     if (result.result?.artists == null)
                     {
-                        ResetArtistItem();
+                        ResetCellItem(WhereNullResult.Artist, _artistItemConfig);
                         _whereNullResult |= WhereNullResult.Artist;
                         _nullResult.SetActive(true);
                         _isSearching = false;
                         return;
                     }
 
-                    ResetArtistItem();
+                    _requestJsonData.limit = _artistItemConfig._displayNumPerPage.ToString();
+                    ResetCellItem(WhereNullResult.Artist, _artistItemConfig);
                     _searchedResultCounter = result.result.artistCount;
                     result.result.artists = PlaylistUtility.SortByRelationship(result.result.artists, _requestJsonData.s);
                     _enabledArtistsCount = result.result.artists.Count;
-                    await BindArtistData(result, token);
+                    await BindCellData(false, Network.ArtistUrl, Network.ArtistXPath, result.result.artists, _artistItemConfig, token, progress);
+                    progress.Report(TaskStatus.Running);
                     break;
                 case SearchType.Album:
+                    if (result.result?.albums == null)
+                    {
+                        ResetCellItem(WhereNullResult.Album, _albumItemConfig);
+                        _whereNullResult |= WhereNullResult.Album;
+                        _nullResult.SetActive(true);
+                        _isSearching = false;
+                        return;
+                    }
+
+                    _requestJsonData.limit = _artistItemConfig._displayNumPerPage.ToString();
+                    ResetCellItem(WhereNullResult.Album, _albumItemConfig);
+                    _searchedResultCounter = result.result.albumCount;
+                    result.result.albums = PlaylistUtility.SortByRelationship(result.result.albums, _requestJsonData.s);
+                    _enabledAlbumsCount = result.result.albums.Count;
+                    await BindCellData(true, Network.AlbumUrl, Network.AlbumXPath, result.result.albums, _albumItemConfig, token, progress);
+                    progress.Report(TaskStatus.Running);
                     break;
                 default:
                     break;
             }
+            
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         /// <summary>
@@ -503,8 +580,9 @@ namespace InnerMediaPlayer.UI
         /// <param name="uis"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        private async Task BindSongData(IList<ISongBindable> songs, IList<SongDetail> uis, CancellationToken token)
+        private async Task BindSongData(IList<ISongBindable> songs, IList<SongDetail> uis, CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
+            progress.Report(TaskStatus.Running);
             //对搜索到的结果实行对数据和ui的绑定
             for (int i = 0; i < songs.Count; i++)
             {
@@ -517,11 +595,28 @@ namespace InnerMediaPlayer.UI
                 RectTransform textMask = uis[i]._textMask;
 
                 Image album = uis[i]._album;
-                album.sprite = await _network.GetPictureAsync(song.al.picUrl);
+                try
+                {
+                    album.sprite = await _network.GetPictureAsync(song.al.picUrl);
+                }
+                catch (HttpRequestException e)
+                {
+                    SetPreferredSize(e.Message);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                    album.sprite = null;
+                }
+                catch (MissingReferenceException)
+                {
+                    return;
+                }
 
                 //如果有新搜索动作产生则取消原搜索动作
                 if (token.IsCancellationRequested)
+                {
+                    token.CallBack();
+                    progress.Report(TaskStatus.Canceled);
                     return;
+                }
 
                 #region 向UI赋值歌名和作家
 
@@ -539,8 +634,23 @@ namespace InnerMediaPlayer.UI
                 #endregion
 
                 CannotListenReason reason = song.CanPlay();
-                SongResult songDetail = await _network.GetSongResultDetailAsync(song.id);
-                reason = reason != 0 ? reason : songDetail.data[0].CanPlay();
+                SongResult songResult = null;
+                try
+                {
+                    songResult = await _network.GetSongResultDetailAsync(song.id);
+                    reason = reason != 0 ? reason : songResult.data[0].CanPlay();
+                }
+                catch (HttpRequestException e)
+                {
+                    reason = CannotListenReason.NetworkError;
+                    SetPreferredSize(e.Message);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                }
+                catch (MissingReferenceException)
+                {
+                    return;
+                }
+                
                 if (reason == CannotListenReason.None)
                 {
                     play.onClick.AddListener(PlayLocalMethod);
@@ -568,7 +678,7 @@ namespace InnerMediaPlayer.UI
                         _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
 
                         //音频添加成功提示语
-                        bool isSucceed = await Play(song.id, song.name, artist.text, song.al.picUrl, album.sprite, songDetail);
+                        bool isSucceed = await Play(song.id, song.name, artist.text, song.al.picUrl, album.sprite, songResult);
                         _addSongTip.Clear();
                         _addSongTip.Append(song.name);
                         _addSongTip.Append(isSucceed ? AddSuccessfully : $"{AddFailure}{reason}");
@@ -605,7 +715,7 @@ namespace InnerMediaPlayer.UI
                         _tipTaskQueue.AddTask(1f, 1.3f, FadeOut);
 
                         //音频添加成功提示语
-                        bool isSucceed = await AddToList(song.id, song.name, artist.text, song.al.picUrl, album.sprite, songDetail);
+                        bool isSucceed = await AddToList(song.id, song.name, artist.text, song.al.picUrl, album.sprite, songResult);
                         _addSongTip.Clear();
                         _addSongTip.Append(song.name);
                         _addSongTip.Append(isSucceed ? AddSuccessfully : $"{AddFailure}{reason}");
@@ -622,6 +732,9 @@ namespace InnerMediaPlayer.UI
                     artist.color = Color.gray;
                     addList.gameObject.SetActive(false);
                 }
+
+                if (go == null)
+                    return;
                 go.SetActive(true);
             }
 
@@ -630,12 +743,14 @@ namespace InnerMediaPlayer.UI
                 Text songName = uis[i]._songName;
                 Text artist = uis[i]._artist;
                 RectTransform textMask = uis[i]._textMask;
-                if (!songName.gameObject.activeSelf || !artist.gameObject.activeSelf)
+                if (!songName.gameObject.activeInHierarchy || !artist.gameObject.activeInHierarchy)
                     break;
                 songName.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, songName, textMask));
                 artist.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, artist, textMask));
             }
+
             _isSearching = false;
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         /// <summary>
@@ -644,60 +759,67 @@ namespace InnerMediaPlayer.UI
         /// <param name="result"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        private async Task BindArtistData(SearchedResult result, CancellationToken token)
+        private async Task BindCellData<T>(bool needConvertString2Int, string requestUrl, string jsonNodePath, List<T> list, UIItemConfig config, CancellationTokenSource token, IProgress<TaskStatus> progress) where T : CellItem
         {
+            progress.Report(TaskStatus.Running);
             //对搜索到的结果实行对数据和ui的绑定
-            for (int i = 0; i < result.result.artists.Count; i++)
+            for (int i = 0; i < list.Count; i++)
             {
-                ArtistItem artists = result.result.artists[i];
-                GameObject go = _artistItemConfig._artistItems[i]._root;
-                Image artist = _artistItemConfig._artistItems[i]._artist;
-                Text artistText = _artistItemConfig._artistItems[i]._artistText;
-                RectTransform textMask = _artistItemConfig._artistItems[i]._textMask;
-                Button openDetailPage = _artistItemConfig._artistItems[i]._click;
+                CellItem item = list[i];
+                GameObject go = config._items[i]._root;
+                Image artist = config._items[i]._image;
+                Text artistText = config._items[i]._text;
+                RectTransform textMask = config._items[i]._textMask;
+                Button openDetailPage = config._items[i]._click;
 
-                Image album = _artistItemConfig._artistItems[i]._artist;
-                album.sprite = await _network.GetPictureAsync(artists.picUrl);
-                artistText.text = artists.name;
+                Image album = config._items[i]._image;
+                album.sprite = await _network.GetPictureAsync(item.picUrl);
+                artistText.text = item.name;
 
                 //如果有新搜索动作产生则取消原搜索动作
                 if (token.IsCancellationRequested)
+                {
+                    token.CallBack();
+                    progress.Report(TaskStatus.Canceled);
                     return;
+                }
                 openDetailPage.onClick.AddListener(OpenPage);
 
                 //TODO:打开艺人旗下所有歌曲
                 async void OpenPage()
                 {
-                    string htmlPage = await _network.GetAsync(Network.ArtistUrl, false, "id", artists.id.ToString());
+                    string htmlPage = await _network.GetAsync(requestUrl, true, "id", item.id.ToString());
                     //从静态html中分离所需要的数据
                     _htmlDocument.LoadHtml(htmlPage);
-                    HtmlNode node = _htmlDocument.DocumentNode.SelectSingleNode("//body/div/div/div/div/div/div/div/div/textarea");
+                    HtmlNode node = _htmlDocument.DocumentNode.SelectSingleNode(jsonNodePath);
                     //为空则没有元素
                     if (node == null)
                     {
-                        _returnLastPanel.onClick.RemoveAllListeners();
+                        config._returnLastPanel.onClick.RemoveAllListeners();
                         SetPreferredSize(NullResult);
                         _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                         _isSearching = false;
                         return;
                     }
                     string standardJson = Convert2StandardJson(node.InnerText);
-                    Models.Search.FullName.SearchedResult searchedResult = JsonMapper.ToObject<Models.Search.FullName.SearchedResult>(standardJson);
+                    Models.Search.FullName.SearchedResult searchedResult = JsonMapper.ToObject<Models.Search.FullName.SearchedResult>(standardJson, needConvertString2Int);
                     //打开歌曲界面
-                    _returnLastPanel.onClick.RemoveAllListeners();
-                    _artistSongContainer.gameObject.SetActive(true);
-                    _artistResultContainer.gameObject.SetActive(false);
-                    _resultContainer.content = _artistSongContainer;
-                    _returnLastPanel.gameObject.SetActive(true);
-                    _returnLastPanel.onClick.AddListener(() =>
+                    config._returnLastPanel.onClick.RemoveAllListeners();
+                    config._songContainer.gameObject.SetActive(true);
+                    config._resultContainer.gameObject.SetActive(false);
+                    _resultContainer.content = config._songContainer;
+                    config._returnLastPanel.gameObject.SetActive(true);
+                    config._returnLastPanel.onClick.AddListener(() =>
                     {
-                        _artistSongContainer.gameObject.SetActive(false);
-                        _artistResultContainer.gameObject.SetActive(true);
-                        _resultContainer.content = _artistResultContainer;
-                        _returnLastPanel.gameObject.SetActive(false);
+                        if (_searchTaskQueue.Status == TaskStatus.Running)
+                            _searchTaskQueue.Stop();
+                        config._songContainer.gameObject.SetActive(false);
+                        config._resultContainer.gameObject.SetActive(true);
+                        _resultContainer.content = config._resultContainer;
+                        config._returnLastPanel.gameObject.SetActive(false);
                     });
 
-                    ResetSongItem(_artistItemConfig._songsItems, false);
+                    ResetSongItem(config._songsItems, false);
                     if (searchedResult.results == null || searchedResult.results.Count == 0)
                     {
                         _whereNullResult |= WhereNullResult.Song;
@@ -708,9 +830,9 @@ namespace InnerMediaPlayer.UI
 
                     _searchedResultCounter = searchedResult.results.Count;
                     searchedResult.results = PlaylistUtility.SortByRelationship(searchedResult.results, _requestJsonData.s);
-                    ExpandSongUINum(searchedResult.results.Count, _artistItemConfig._songsItems, _artistSongContainer);
+                    ExpandSongUINum(searchedResult.results.Count, config._songsItems, config._songContainer);
                     List<ISongBindable> relationshipSortables = searchedResult.results.Cast<ISongBindable>().ToList();
-                    await BindSongData(relationshipSortables, _artistItemConfig._songsItems, token);
+                    await BindSongData(relationshipSortables, config._songsItems, token, progress);
                 }
 
                 string Convert2StandardJson(string json)
@@ -722,15 +844,17 @@ namespace InnerMediaPlayer.UI
                 go.SetActive(true);
             }
 
-            for (int i = 0; i < result.result.artists.Count; i++)
+            for (int i = 0; i < list.Count; i++)
             {
-                Text artistText = _artistItemConfig._artistItems[i]._artistText;
-                RectTransform textMask = _artistItemConfig._artistItems[i]._textMask;
-                if (!artistText.gameObject.activeSelf)
+                Text text = config._items[i]._text;
+                RectTransform textMask = config._items[i]._textMask;
+                if (!text.gameObject.activeInHierarchy)
                     break;
-                artistText.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, artistText, textMask));
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
             }
+
             _isSearching = false;
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         private void ExpandSongUINum(int limit, IList<SongDetail> songs, RectTransform parent)
@@ -812,15 +936,16 @@ namespace InnerMediaPlayer.UI
             }
         }
 
-        private void ResetArtistItem()
+        private void ResetCellItem(WhereNullResult whereNullResult, UIItemConfig itemConfig)
         {
             _nullResult.SetActive(false);
-            if ((_whereNullResult & WhereNullResult.Artist) == WhereNullResult.Artist)
-                _whereNullResult &= ~WhereNullResult.Artist;
-            foreach (ArtistDetail artist in _artistItemConfig._artistItems)
+            if ((_whereNullResult & whereNullResult) == whereNullResult)
+                _whereNullResult &= ~whereNullResult;
+            foreach (CellDetail detail in itemConfig._items)
             {
-                artist._root.SetActive(false);
-                artist._click.onClick.RemoveAllListeners();
+                detail._root.SetActive(false);
+                detail._click.onClick.RemoveAllListeners();
+                detail._text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, itemConfig._textOriginalSizeX);
             }
         }
     }
