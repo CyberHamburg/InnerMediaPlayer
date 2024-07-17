@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -33,6 +34,9 @@ namespace InnerMediaPlayer.Tools
         internal const string Params = "params";
         internal const string CsrfToken = "csrf_token";
         internal const string EncSeckey = "encSecKey";
+
+        internal const string ArtistXPath = "//body/div/div/div/div/div/div/div/div/textarea";
+        internal const string AlbumXPath = "//body/div/div/div/div/div/div/textarea";
 
         private readonly SongRequest _songRequest;
         private readonly Crypto _crypto;
@@ -141,7 +145,7 @@ namespace InnerMediaPlayer.Tools
             SetRequestHeaders(request, needCookies);
             await request.SendWebRequest();
             if (request.result != UnityWebRequest.Result.Success)
-                throw new UnityException(request.error);
+                throw new HttpRequestException(request.error);
             return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
         }
 
@@ -232,13 +236,13 @@ namespace InnerMediaPlayer.Tools
                 return DownloadHandlerTexture.GetContent(unityWebRequest);
             if (unityWebRequest.error.Contains("404"))
                 return null;
-            throw new UnityException(unityWebRequest.error);
+            throw new HttpRequestException(unityWebRequest.error);
         }
 
         internal async Task<Sprite> GetPictureAsync(string picUrl)
         {
             Texture2D texture = await GetTextureAsync(picUrl, "param", "200y200");
-            if (texture == null) 
+            if (texture == null)
                 return null;
             Rect rect = new Rect(0, 0, texture.width, texture.height);
             Sprite sprite = Sprite.Create(texture, rect, Vector2.one * 0.5f, 100);
