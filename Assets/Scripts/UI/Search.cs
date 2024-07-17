@@ -110,6 +110,7 @@ namespace InnerMediaPlayer.UI
         private const string NullResult = "此界面下没有搜索结果";
         private const string SearchingNoInterrupt = "请搜索完之后再切换";
         private const string ReturnLastLevel = "请先返回上一级后再设置搜索模式";
+        private const string NotProvideTurnPage = "已展示全部搜索结果，当前页面暂不支持翻页";
 
         //提示框最大宽度将被限制为此数值
         private float LimitedTipWidth
@@ -428,6 +429,14 @@ namespace InnerMediaPlayer.UI
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
+
+                if (_artistItemConfig._songContainer.gameObject.activeInHierarchy || _albumItemConfig._songContainer.gameObject.activeInHierarchy)
+                {
+                    SetPreferredSize(NotProvideTurnPage);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                    return;
+                }
+
                 _requestJsonData.offset = (--page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
                 _network.UpdateFormData(Network.Params, encryptRequestData);
@@ -446,6 +455,14 @@ namespace InnerMediaPlayer.UI
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
+
+                if (_artistItemConfig._songContainer.gameObject.activeInHierarchy || _albumItemConfig._songContainer.gameObject.activeInHierarchy)
+                {
+                    SetPreferredSize(NotProvideTurnPage);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                    return;
+                }
+
                 int page = offset / limit;
                 _requestJsonData.offset = (++page * limit).ToString();
                 string encryptRequestData = _crypto.Encrypt(_requestJsonData);
@@ -787,6 +804,9 @@ namespace InnerMediaPlayer.UI
                 //TODO:打开艺人旗下所有歌曲
                 async void OpenPage()
                 {
+                    _isSearching = true;
+                    SetPreferredSize(Searching);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     string htmlPage = await _network.GetAsync(requestUrl, true, "id", item.id.ToString());
                     //从静态html中分离所需要的数据
                     _htmlDocument.LoadHtml(htmlPage);
@@ -810,6 +830,7 @@ namespace InnerMediaPlayer.UI
                     config._returnLastPanel.gameObject.SetActive(true);
                     config._returnLastPanel.onClick.AddListener(() =>
                     {
+                        _isSearching = false;
                         if (_searchTaskQueue.Status == TaskStatus.Running)
                             _searchTaskQueue.Stop();
                         config._songContainer.gameObject.SetActive(false);
