@@ -305,7 +305,7 @@ namespace LitJson
             return op;
         }
 
-        private static object ReadValue (Type inst_type, JsonReader reader)
+        private static object ReadValue (Type inst_type, JsonReader reader, bool needConvertString2Int)
         {
             reader.Read ();
 
@@ -339,8 +339,14 @@ namespace LitJson
 
                 Type json_type = reader.Value.GetType ();
 
-                if (value_type.IsAssignableFrom (json_type))
+                if (value_type.IsAssignableFrom(json_type))
                     return reader.Value;
+                else
+                {
+                    if (needConvertString2Int)
+                        if (reader.Value is string)
+                            return int.Parse((string)reader.Value);
+                }
 
                 // If there's a custom importer that fits, use it
                 if (custom_importers_table.ContainsKey (json_type) &&
@@ -411,7 +417,7 @@ namespace LitJson
                 list.Clear();
 
                 while (true) {
-                    object item = ReadValue (elem_type, reader);
+                    object item = ReadValue (elem_type, reader, needConvertString2Int);
                     if (item == null && reader.Token == JsonToken.ArrayEnd)
                         break;
 
@@ -447,7 +453,7 @@ namespace LitJson
 
                         if (prop_data.IsField) {
                             ((FieldInfo) prop_data.Info).SetValue (
-                                instance, ReadValue (prop_data.Type, reader));
+                                instance, ReadValue (prop_data.Type, reader, needConvertString2Int));
                         } else {
                             PropertyInfo p_info =
                                 (PropertyInfo) prop_data.Info;
@@ -455,10 +461,10 @@ namespace LitJson
                             if (p_info.CanWrite)
                                 p_info.SetValue (
                                     instance,
-                                    ReadValue (prop_data.Type, reader),
+                                    ReadValue (prop_data.Type, reader, needConvertString2Int),
                                     null);
                             else
-                                ReadValue (prop_data.Type, reader);
+                                ReadValue (prop_data.Type, reader, needConvertString2Int);
                         }
 
                     } else {
@@ -477,7 +483,7 @@ namespace LitJson
 
                         ((IDictionary) instance).Add (
                             property, ReadValue (
-                                t_data.ElementType, reader));
+                                t_data.ElementType, reader, needConvertString2Int));
                     }
 
                 }
@@ -930,30 +936,30 @@ namespace LitJson
                 delegate { return new JsonData (); }, json);
         }
 
-        public static T ToObject<T> (JsonReader reader)
+        public static T ToObject<T> (JsonReader reader, bool needConvertString2Int = false)
         {
-            return (T) ReadValue (typeof (T), reader);
+            return (T) ReadValue (typeof (T), reader, needConvertString2Int);
         }
 
-        public static T ToObject<T> (TextReader reader)
+        public static T ToObject<T> (TextReader reader, bool needConvertString2Int = false)
         {
             JsonReader json_reader = new JsonReader (reader);
 
-            return (T) ReadValue (typeof (T), json_reader);
+            return (T) ReadValue (typeof (T), json_reader, needConvertString2Int);
         }
 
-        public static T ToObject<T> (string json)
+        public static T ToObject<T> (string json, bool needConvertString2Int = false)
         {
             JsonReader reader = new JsonReader (json);
 
-            return (T) ReadValue (typeof (T), reader);
+            return (T) ReadValue (typeof (T), reader, needConvertString2Int);
         }
 
-        public static object ToObject(string json, Type ConvertType )
+        public static object ToObject(string json, Type ConvertType, bool needConvertString2Int = false)
         {
             JsonReader reader = new JsonReader(json);
 
-            return ReadValue(ConvertType, reader);
+            return ReadValue(ConvertType, reader, needConvertString2Int);
         }
 
         public static IJsonWrapper ToWrapper (WrapperFactory factory,
