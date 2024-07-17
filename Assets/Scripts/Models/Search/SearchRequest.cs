@@ -34,7 +34,7 @@ namespace InnerMediaPlayer.Models.Search
         /// </summary>
         public string csrf_token { get; set; }
 
-        public SearchRequestData(string csrfToken)
+        public SearchRequestData(string csrfToken, int limit)
         {
             s = "";
             hlpretag = "<span class=\\\"s-fc7\\\">";
@@ -43,7 +43,7 @@ namespace InnerMediaPlayer.Models.Search
             queryCorrect = false;
             offset = "0";
             total = "true";
-            limit = "20";
+            this.limit = limit.ToString();
             csrf_token = csrfToken;
         }
     }

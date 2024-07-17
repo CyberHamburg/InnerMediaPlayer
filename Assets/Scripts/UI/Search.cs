@@ -171,7 +171,7 @@ namespace InnerMediaPlayer.UI
             AddEventTriggerInterface(_resultContainer.gameObject, EventTriggerType.EndDrag, JudgeIfTurnThePage);
             AddEventTriggerInterface(_resultContainer.gameObject, EventTriggerType.Drag, CalculateDragDistance);
             Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
-            _requestJsonData = new SearchRequestData(cookie.value);
+            _requestJsonData = new SearchRequestData(cookie.value, _songItemConfig._displayNumPerPage);
             int limitNumEveryPage = int.Parse(_requestJsonData.limit);
             _songItemConfig._songItems = new List<SongDetail>(limitNumEveryPage);
             ExpandSongUINum(limitNumEveryPage, _songItemConfig._songItems, _songItemConfig._songResultContainer);
@@ -237,6 +237,7 @@ namespace InnerMediaPlayer.UI
                     _artistItemConfig._resultContainer.gameObject.SetActive(false);
                     _albumItemConfig._resultContainer.gameObject.SetActive(false);
                     _resultContainer.content = _songItemConfig._songResultContainer;
+                    _requestJsonData.limit = _songItemConfig._displayNumPerPage.ToString();
                     for (int i = 0; i < _enabledSongsCount; i++)
                     {
                         Text songName = _songItemConfig._songItems[i]._songName;
@@ -274,6 +275,7 @@ namespace InnerMediaPlayer.UI
                 disable._resultContainer.gameObject.SetActive(false);
                 enable._resultContainer.gameObject.SetActive(true);
                 _resultContainer.content = enable._resultContainer;
+                _requestJsonData.limit = enable._displayNumPerPage.ToString();
                 for (int i = 0; i < enabledCount; i++)
                 {
                     Text text = enable._items[i]._text;
@@ -520,7 +522,6 @@ namespace InnerMediaPlayer.UI
                         break;
                     }
 
-                    _requestJsonData.limit = _songItemConfig._displayNumPerPage.ToString();
                     ResetSongItem(_songItemConfig._songItems, true);
                     _searchedResultCounter = result.result.songCount;
                     result.result.songs = PlaylistUtility.SortByRelationship(result.result.songs, _requestJsonData.s);
@@ -540,7 +541,6 @@ namespace InnerMediaPlayer.UI
                         return;
                     }
 
-                    _requestJsonData.limit = _artistItemConfig._displayNumPerPage.ToString();
                     ResetCellItem(WhereNullResult.Artist, _artistItemConfig);
                     _searchedResultCounter = result.result.artistCount;
                     result.result.artists = PlaylistUtility.SortByRelationship(result.result.artists, _requestJsonData.s);
@@ -558,7 +558,6 @@ namespace InnerMediaPlayer.UI
                         return;
                     }
 
-                    _requestJsonData.limit = _artistItemConfig._displayNumPerPage.ToString();
                     ResetCellItem(WhereNullResult.Album, _albumItemConfig);
                     _searchedResultCounter = result.result.albumCount;
                     result.result.albums = PlaylistUtility.SortByRelationship(result.result.albums, _requestJsonData.s);
