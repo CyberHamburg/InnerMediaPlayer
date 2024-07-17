@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Threading;
 using System.Threading.Tasks;
@@ -93,8 +94,9 @@ namespace InnerMediaPlayer.UI
             _needScrollAutomatically = true;
         }
 
-        private IEnumerator HighLightPositionReset(CancellationToken token)
+        private IEnumerator HighLightPositionReset(Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
+            progress.Report(TaskStatus.Running);
             _highLightPositionResetTimer = default;
             while (_highLightPositionResetTimer < HighLightPositionResetTimer)
             {
@@ -106,12 +108,17 @@ namespace InnerMediaPlayer.UI
                 _highLightPositionResetTimer += Time.deltaTime;
                 yield return null;
                 if(token.IsCancellationRequested)
+                {
+                    token.CallBack();
+                    progress.Report(TaskStatus.Canceled);
                     yield break;
+                }
             }
 
             _mediator._needScrollAutomatically = true;
             _mediator.contentTransform.anchoredPosition =
                 new Vector2(_mediator.contentTransform.anchoredPosition.x, _lyrics.ContentPosY);
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         internal async void SwitchControl()
@@ -127,14 +134,14 @@ namespace InnerMediaPlayer.UI
         /// <param name="id">歌曲id</param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal Task DisplayLyric(int id, CancellationToken token) => _lyrics.DisplayAsync(id, Controller, token);
+        internal Task DisplayLyric(int id, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) => _lyrics.DisplayAsync(id, Controller, token, progress);
 
         /// <summary>
         /// 在特定时间点开始展示歌词
         /// </summary>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal Task DisplayByInterruptAsync(CancellationToken token) => _lyrics.DisplayByInterruptAsync(Controller, token);
+        internal Task DisplayByInterruptAsync(Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) => _lyrics.DisplayByInterruptAsync(Controller, token, progress);
 
         /// <summary>
         /// 停止正常展示歌词任务队列的运行

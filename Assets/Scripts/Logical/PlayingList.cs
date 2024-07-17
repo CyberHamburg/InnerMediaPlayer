@@ -405,8 +405,9 @@ namespace InnerMediaPlayer.Logical
         /// <param name="stopByForce">是否被强制停止播放</param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task IterationListAsync(Action<Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, CancellationToken token)
+        internal async Task IterationListAsync(Action<Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
+            progress.Report(TaskStatus.Running);
 #if UNITY_DEBUG
             #region Log
 
@@ -465,7 +466,12 @@ namespace InnerMediaPlayer.Logical
                 {
                     await Task.Yield();
                     if (token.IsCancellationRequested || !Application.isPlaying)
+                    {
+                        token.CallBack();
+                        progress.Report(TaskStatus.Canceled);
                         return;
+                    }
+
                     if(_isClickedNextSong || _isClickedPreviousSong)
                         break;
                 }
@@ -529,6 +535,8 @@ namespace InnerMediaPlayer.Logical
                 currentPlaying = PlayList.First;
                 updateUI(currentPlaying?.Value);
             }
+
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         internal bool Contains(int id)

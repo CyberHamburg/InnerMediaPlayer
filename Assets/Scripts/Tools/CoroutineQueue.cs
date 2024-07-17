@@ -1,44 +1,59 @@
+using InnerMediaPlayer.Models;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace InnerMediaPlayer.Tools
 {
     internal class CoroutineQueue : MonoBehaviour
     {
-        private Queue<Func<CancellationToken, IEnumerator>> _taskQueue;
+        private Queue<Func<CancellationTokenSource, IProgress<TaskStatus>, IEnumerator>> _taskQueue;
 
         protected CancellationTokenSource cancelTokenSource;
+        protected TaskProgress progress;
         protected Coroutine currentCoroutine;
-        protected bool isRunningRunMethod;
+        protected bool waitForCancel;
 
-        internal void Run(Func<CancellationToken, IEnumerator> method)
+        private void Awake()
         {
-            _taskQueue ??= new Queue<Func<CancellationToken, IEnumerator>>();
-            _taskQueue.Enqueue(method);
+            cancelTokenSource = new CancellationTokenSource();
+            progress = new TaskProgress();
+            _taskQueue = new Queue<Func<CancellationTokenSource, IProgress<TaskStatus>, IEnumerator>>();
+        }
 
-            while (_taskQueue.Count > 0 && !isRunningRunMethod)
+        internal async void Run(Func<CancellationTokenSource, IProgress<TaskStatus>, IEnumerator> method)
+        {
+            if (_taskQueue.Count == 0 && !waitForCancel)
+                _taskQueue.Enqueue(method);
+
+            while (_taskQueue.Count > 0 && !waitForCancel)
             {
-                isRunningRunMethod = true;
-                Func<CancellationToken, IEnumerator> newTaskFunc = _taskQueue.Dequeue();
-
-                using (cancelTokenSource)
+                Func<CancellationTokenSource, IProgress<TaskStatus>, IEnumerator> newTaskFunc = _taskQueue.Dequeue();
+                if (progress.Status == TaskStatus.Running)
                 {
-                    if (currentCoroutine != null)
+                    Stop();
+                    while (progress.Status == TaskStatus.Running)
                     {
-                        if (cancelTokenSource != null && !cancelTokenSource.IsCancellationRequested)
-                        {
-                            cancelTokenSource.Cancel();
-                        }
+                        waitForCancel = true;
+                        await Task.Yield();
                     }
-
-                    cancelTokenSource = new CancellationTokenSource();
-                    currentCoroutine = StartCoroutine(newTaskFunc(cancelTokenSource.Token));
                 }
-                isRunningRunMethod = false;
+
+                waitForCancel = false;
+                currentCoroutine = StartCoroutine(newTaskFunc(cancelTokenSource, progress));
             }
+        }
+
+        protected internal void Stop()
+        {
+            if (cancelTokenSource == null)
+                throw new NullReferenceException("取消令牌为空");
+#if UNITY_DEBUG
+            Debug.Log("停止任务运行");
+#endif
+            cancelTokenSource.Cancel();
         }
     }
 }

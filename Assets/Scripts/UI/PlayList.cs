@@ -60,8 +60,8 @@ namespace InnerMediaPlayer.UI
 
         internal void ProcessAdjustment(float value) => _playingList.ProcessAdjustment(value);
 
-        internal Task IterationListAsync(Action<PlayingList.Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, CancellationToken token) =>
-            _playingList.IterationListAsync(updateUI, lyric, disposedSongId, stopByForce, token);
+        internal Task IterationListAsync(Action<PlayingList.Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) =>
+            _playingList.IterationListAsync(updateUI, lyric, disposedSongId, stopByForce, token, progress);
 
         internal int ForceAdd(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
             RectTransform uiContent, Action<int> disposeLyric) =>

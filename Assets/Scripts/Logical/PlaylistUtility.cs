@@ -1,10 +1,8 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Models;
 using InnerMediaPlayer.Models.Search;
@@ -12,9 +10,7 @@ using InnerMediaPlayer.Tools;
 using InnerMediaPlayer.UI;
 using LitJson;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.UI;
-using static UnityEngine.Networking.UnityWebRequest;
 using Network = InnerMediaPlayer.Tools.Network;
 
 namespace InnerMediaPlayer.Logical
@@ -134,11 +130,12 @@ namespace InnerMediaPlayer.Logical
 #endif
 
             return false;
-            Task IterationListAsync(int disposeSongId, bool stopByForce, CancellationToken token) =>
-                playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposeSongId, stopByForce, token);
+            Task IterationListAsync(int disposeSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) =>
+                playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposeSongId, stopByForce, token, progress);
         }
 
-        internal async Task<bool> AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying, SongResult songResult)
+        internal async Task<bool> AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric,
+            PlayList playList, NowPlaying nowPlaying, SongResult songResult)
         {
             AudioClip clip;
             try
@@ -162,8 +159,8 @@ namespace InnerMediaPlayer.Logical
 #endif
 
             return false;
-            Task IterationListAsync(int disposedSongId, bool stopByForce, CancellationToken token) =>
-                playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposedSongId, stopByForce, token);
+            Task IterationListAsync(int disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) =>
+                playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposedSongId, stopByForce, token, progress);
         }
 
         /// <summary>

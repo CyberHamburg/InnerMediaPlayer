@@ -352,8 +352,9 @@ namespace InnerMediaPlayer.Logical
         /// <param name="resetContentPosY"></param>
         /// <param name="token">任务中断令牌</param>
         /// <returns>任务是否被中断执行？</returns>
-        private async Task<bool> CountDownTimerAsync(double maxTime, int id, Action resetContentPosY, CancellationToken token)
+        private async Task<bool> CountDownTimerAsync(double maxTime, int id, Action resetContentPosY, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
+            progress.Report(TaskStatus.Running);
             _stopwatch.Reset();
             _minusStopwatch.Reset();
             _stopwatch.Start();
@@ -362,16 +363,25 @@ namespace InnerMediaPlayer.Logical
             while (_stopwatch.Elapsed.TotalSeconds - minusSeconds < maxTime)
             {
                 await Task.Yield();
+                if (!Application.isPlaying)
+                    return true;
                 resetContentPosY();
                 if (token.IsCancellationRequested)
+                {
+                    progress.Report(TaskStatus.Canceled);
                     return true;
+                }
+
                 if (_playingList.Pause)
                     _minusStopwatch.Start();
                 while (_playingList.Pause)
                 {
                     await Task.Yield();
                     if (token.IsCancellationRequested)
+                    {
+                        progress.Report(TaskStatus.Canceled);
                         return true;
+                    }
                 }
 
                 if (!_minusStopwatch.IsRunning)
@@ -384,12 +394,14 @@ namespace InnerMediaPlayer.Logical
             if (!_lyrics.ContainsKey(id) || !Application.isPlaying)
             {
                 _stopwatch.Reset();
+                progress.Report(TaskStatus.Canceled);
                 return true;
             }
 #if UNITY_EDITOR && UNITY_DEBUG
             Debug.Log((_stopwatch.Elapsed.TotalSeconds - minusSeconds, maxTime));
 #endif
             _stopwatch.Reset();
+            progress.Report(TaskStatus.RanToCompletion);
             return false;
         }
 
@@ -400,8 +412,9 @@ namespace InnerMediaPlayer.Logical
         /// <param name="mediator"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task DisplayAsync(int id, UI.Lyric.Mediator mediator, CancellationToken token)
+        internal async Task DisplayAsync(int id, UI.Lyric.Mediator mediator, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
+            progress.Report(TaskStatus.Running);
             //在换歌后调整前一首的高亮为普通
             if (_rollingLyricsId != 0 && _lyrics.ContainsKey(_rollingLyricsId))
             {
@@ -442,9 +455,14 @@ namespace InnerMediaPlayer.Logical
                 if (i != default)
                     lastLine = lines[i - 1];
                 Line currentLine = lines[i];
-                if(await IsInterruptWhenScrollAsync(currentLine._timeInterval, id, lyric.normal, lyric.highLight, token, lastLine, currentLine, mediator))
+                if(await IsInterruptWhenScrollAsync(currentLine._timeInterval, id, lyric.normal, lyric.highLight, token, progress, lastLine, currentLine, mediator))
+                {
+                    progress.Report(TaskStatus.Canceled);
                     return;
+                }
             }
+
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         /// <summary>
@@ -453,8 +471,9 @@ namespace InnerMediaPlayer.Logical
         /// <param name="mediator"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        internal async Task DisplayByInterruptAsync(UI.Lyric.Mediator mediator, CancellationToken token)
+        internal async Task DisplayByInterruptAsync(UI.Lyric.Mediator mediator, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
+            progress.Report(TaskStatus.Running);
             Lyric lyric = _lyrics[_rollingLyricsId];
             List<Line> lines = lyric.lines;
             bool needHighLightPositionAutoReset = lyric.needHighLightPositionAutoReset;
@@ -499,8 +518,11 @@ namespace InnerMediaPlayer.Logical
                 _highLightLyric._text.color = lyric.highLight;
             }
             if (await IsInterruptWhenScrollAsync(target._timeInterval + startTime - currentTime, _rollingLyricsId, lyric.normal, lyric.highLight,
-                    token, _highLightLyric, target, mediator))
+                    token, progress, _highLightLyric, target, mediator))
+            {
+                progress.Report(TaskStatus.Canceled);
                 return;
+            }
             Line lastLine = null;
             //从目标歌词开始顺序展示
             for (int i = targetIndex + 1; i < lines.Count; i++)
@@ -509,9 +531,14 @@ namespace InnerMediaPlayer.Logical
                     lastLine = lines[i - 1];
                 Line currentLine = lines[i];
                 if (await IsInterruptWhenScrollAsync(currentLine._timeInterval, _rollingLyricsId, lyric.normal, lyric.highLight, token,
-                        lastLine, currentLine, mediator))
+                        progress, lastLine, currentLine, mediator))
+                {
+                    progress.Report(TaskStatus.Canceled);
                     return;
+                }
             }
+
+            progress.Report(TaskStatus.RanToCompletion);
         }
 
         /// <summary>
@@ -526,15 +553,21 @@ namespace InnerMediaPlayer.Logical
         /// <param name="mediator"></param>
         /// <param name="normal"></param>
         /// <returns>任务是否被中断执行？</returns>
-        private async Task<bool> IsInterruptWhenScrollAsync(double maxTime, int songId, Color normal, Color highLight, CancellationToken token,
-            Line lastLine, Line targetLine, UI.Lyric.Mediator mediator)
+        private async Task<bool> IsInterruptWhenScrollAsync(double maxTime, int songId, Color normal, Color highLight, Tools.CancellationTokenSource token,
+            IProgress<TaskStatus> progress, Line lastLine, Line targetLine, UI.Lyric.Mediator mediator)
         {
+            progress.Report(TaskStatus.Running);
             if (lastLine == null)
                 _highLightLyric = targetLine;
             _highLightLyric = lastLine;
-            if (await CountDownTimerAsync(maxTime, songId, ResetContentPos, token))
+            if (await CountDownTimerAsync(maxTime, songId, ResetContentPos, token, progress))
+            {
+                progress.Report(TaskStatus.Canceled);
                 return true;
+            }
+
             Scroll(normal, highLight, lastLine, targetLine, mediator);
+            progress.Report(TaskStatus.RanToCompletion);
             return false;
 
             void ResetContentPos() => ResetContentPosY(mediator);
