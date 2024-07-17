@@ -55,24 +55,31 @@ namespace InnerMediaPlayer.Models.Search
         public CannotListenReason CanPlay()
         {
             if (privilege == null)
-                return CannotListenReason.NoCopyright;
+                return CannotListenReason.NoCopyrightOrNotVIP;
             if (st < 0)
-                return CannotListenReason.NoCopyright;
+                return CannotListenReason.NoCopyrightOrNotVIP;
             if (privilege.pl == 0 && privilege.dl == 0)
-                return CannotListenReason.NoCopyright;
+                return CannotListenReason.NoCopyrightOrNotVIP;
             return CannotListenReason.None;
         }
     }
 
-    public class ArtistItem : IRelationshipSortable
+    public class CellItem : IRelationshipSortable
     {
         public int id { get; set; }
-
         public string name { get; set; }
-
         public string picUrl { get; set; }
-
         public List<Artist> ar { get; set; }
+    }
+
+    public class ArtistItem : CellItem
+    {
+
+    }
+
+    public class AlbumItem : CellItem
+    {
+
     }
 
     public interface IRelationshipSortable
@@ -96,12 +103,16 @@ namespace InnerMediaPlayer.Models.Search
         public List<SongsItem> songs { get; set; }
 
         public List<ArtistItem> artists { get; set; }
+
+        public List<AlbumItem> albums { get; set; }
         /// <summary>
         /// 
         /// </summary>
         public int songCount { get; set; }
 
         public int artistCount { get; set; }
+
+        public int albumCount { get; set; }
     }
 
     public class SearchedResult

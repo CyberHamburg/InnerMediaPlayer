@@ -6,9 +6,9 @@ namespace InnerMediaPlayer.Models
     public enum CannotListenReason
     {
         None,
-        NotVip,
-        NoCopyright,
+        NoCopyrightOrNotVIP,
         NotContainRequestSongEncoderType,
+        NetworkError,
         Unknown
     }
 
@@ -178,7 +178,7 @@ namespace InnerMediaPlayer.Models
             if (url == null && code == 404)
                 return CannotListenReason.NotContainRequestSongEncoderType;
             if (url == null)
-                return CannotListenReason.NotVip;
+                return CannotListenReason.NoCopyrightOrNotVIP;
             return CannotListenReason.None;
         }
     }

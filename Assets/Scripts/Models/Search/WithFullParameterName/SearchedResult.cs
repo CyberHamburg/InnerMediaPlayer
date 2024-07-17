@@ -39,11 +39,11 @@ namespace InnerMediaPlayer.Models.Search.FullName
         public CannotListenReason CanPlay()
         {
             if (privilege == null)
-                return CannotListenReason.NoCopyright;
+                return CannotListenReason.NoCopyrightOrNotVIP;
             if (status < 0)
-                return CannotListenReason.NoCopyright;
+                return CannotListenReason.NoCopyrightOrNotVIP;
             if (privilege.pl == 0 && privilege.dl == 0)
-                return CannotListenReason.NoCopyright;
+                return CannotListenReason.NoCopyrightOrNotVIP;
             return CannotListenReason.None;
         }
     }
