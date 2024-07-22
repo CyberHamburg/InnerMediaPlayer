@@ -520,6 +520,7 @@ namespace InnerMediaPlayer.Logical
             if (await IsInterruptWhenScrollAsync(target._timeInterval + startTime - currentTime, _rollingLyricsId, lyric.normal, lyric.highLight,
                     token, progress, _highLightLyric, target, mediator))
             {
+                token.CallBack();
                 progress.Report(TaskStatus.Canceled);
                 return;
             }
@@ -533,6 +534,7 @@ namespace InnerMediaPlayer.Logical
                 if (await IsInterruptWhenScrollAsync(currentLine._timeInterval, _rollingLyricsId, lyric.normal, lyric.highLight, token,
                         progress, lastLine, currentLine, mediator))
                 {
+                    token.CallBack();
                     progress.Report(TaskStatus.Canceled);
                     return;
                 }
