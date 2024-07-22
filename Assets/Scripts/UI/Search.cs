@@ -73,9 +73,10 @@ namespace InnerMediaPlayer.UI
         //正在同时加载的歌曲id
         private List<int> _loadingSongsId;
         private RectTransform _canvasRectTransform;
+        private Rect _canvasRect;
         private Dropdown _searchTypeDropDown;
 
-        [Header("Display item config")]
+        [Header("Display Item Configs")]
         [SerializeField] private SongItemConfig _songItemConfig;
         [SerializeField] private UIItemConfig _artistItemConfig;
         [SerializeField] private UIItemConfig _albumItemConfig;
@@ -118,7 +119,7 @@ namespace InnerMediaPlayer.UI
             get
             {
                 if (_canvasRectTransform == null)
-                    _canvasRectTransform = (RectTransform)uiManager.FindCanvas(GetType(), "Canvas", "CanvasRoot").transform;
+                    throw new NullReferenceException($"{nameof(_canvasRectTransform)}被调用发生在被赋值之前");
                 return _canvasRectTransform.sizeDelta.x * tipWidthMultiplier;
             }
         }
@@ -147,6 +148,9 @@ namespace InnerMediaPlayer.UI
 
         private async void Start()
         {
+            _canvasRectTransform = (RectTransform)uiManager.FindCanvas(GetType(), "Canvas", "CanvasRoot").transform;
+            _canvasRect = _canvasRectTransform.rect;
+
             _lyric = uiManager.FindUIViewer<Lyric>("Lyric_P", "Canvas", "CanvasRoot");
             _nowPlaying = uiManager.FindUIViewer<NowPlaying>("NowPlaying_P", "Canvas", "CanvasRoot");
             _playList= uiManager.FindUIViewer<PlayList>("PlayList_P", "Canvas", "CanvasRoot");
@@ -190,6 +194,19 @@ namespace InnerMediaPlayer.UI
         private void OnDestroy()
         {
             _searchContainer.onEndEdit.RemoveAllListeners();
+        }
+
+        private void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                if (_canvasRectTransform == null)
+                    throw new NullReferenceException();
+                if (_canvasRect == _canvasRectTransform.rect)
+                    return;
+                _canvasRect = _canvasRectTransform.rect;
+
+            }
         }
 
         private void InitializeItemConfig(int limitNumEveryPage, string prefabName, UIItemConfig itemConfig)
@@ -301,16 +318,15 @@ namespace InnerMediaPlayer.UI
         private IEnumerator HorizontalTextRoller(float stayTimer, float rollSpeed, Text text, RectTransform textMask)
         {
             yield return null;
-            if (text.preferredWidth < text.rectTransform.rect.width)
+            if (text.rectTransform.rect.width < textMask.rect.width || text.preferredWidth < text.rectTransform.rect.width)
                 yield break;
-            text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, text.preferredWidth);
-            float beginningPositionX = textMask.position.x - textMask.rect.width / 2f;
+            text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, text.preferredWidth);
+            float beginningPositionX = text.rectTransform.position.x;
             float endingPositionX = textMask.position.x + textMask.rect.width / 2f;
-            Vector2 beginningPosition = new Vector2(beginningPositionX + text.rectTransform.rect.width / 2f, text.rectTransform.position.y);
+            Vector2 beginningPosition = (Vector2)text.rectTransform.position;
             Vector2 endingPosition = new Vector2(endingPositionX - text.rectTransform.rect.width / 2f, text.rectTransform.position.y);
             Vector2 normalizedVelocity = (endingPosition - beginningPosition).normalized;
 
-            text.rectTransform.position = beginningPosition;
             while (true)
             {
                 yield return new WaitForSeconds(stayTimer);
@@ -320,7 +336,7 @@ namespace InnerMediaPlayer.UI
                     yield return new WaitForSeconds(Time.deltaTime);
                 }
                 yield return new WaitForSeconds(stayTimer);
-                text.rectTransform.position = new Vector2(beginningPositionX + text.rectTransform.rect.width / 2f, text.rectTransform.position.y);
+                text.rectTransform.position = new Vector2(beginningPositionX, text.rectTransform.position.y);
             }
         }
 
@@ -351,7 +367,6 @@ namespace InnerMediaPlayer.UI
             if (_isSearching)
                 SetPreferredSize(Searching);
 
-            Debug.Log("wait for searching done");
             while (_isSearching)
             {
                 await Task.Yield();
@@ -363,7 +378,6 @@ namespace InnerMediaPlayer.UI
                 }
             }
 
-            Debug.Log("beginning fade");
             float fadeOutTimer = fadeOutTimeInterval;
             while (fadeOutTimer > 0f)
             {
@@ -398,12 +412,12 @@ namespace InnerMediaPlayer.UI
             if (_isSearching || !(eventData is PointerEventData pointerEventData))
                 return;
             //翻到了最上面
-            if (_resultContainer.verticalNormalizedPosition >= 1)
+            if (_resultContainer.verticalNormalizedPosition >= 1f)
             {
                 _currentPageDistance += pointerEventData.delta.y;
             }
             //翻到了最下面
-            else if (_resultContainer.verticalNormalizedPosition <= 0)
+            else if (_resultContainer.verticalNormalizedPosition <= 0f)
             {
                 _currentPageDistance += pointerEventData.delta.y;
             }
@@ -422,17 +436,18 @@ namespace InnerMediaPlayer.UI
                 int offset = int.Parse(_requestJsonData.offset);
                 int limit = int.Parse(_requestJsonData.limit);
                 int page = offset / limit;
-                //限制为第一页
-                if (page <= 0)
-                {
-                    SetPreferredSize(PageBeginningAlready);
-                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
-                    return;
-                }
 
                 if (_artistItemConfig._songContainer.gameObject.activeInHierarchy || _albumItemConfig._songContainer.gameObject.activeInHierarchy)
                 {
                     SetPreferredSize(NotProvideTurnPage);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                    return;
+                }
+
+                //限制为第一页
+                if (page <= 0)
+                {
+                    SetPreferredSize(PageBeginningAlready);
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
@@ -448,17 +463,18 @@ namespace InnerMediaPlayer.UI
                 _currentPageDistance = 0;
                 int offset = int.Parse(_requestJsonData.offset);
                 int limit = int.Parse(_requestJsonData.limit);
-                //限制为最后一页
-                if (offset + limit >= _searchedResultCounter)
-                {
-                    SetPreferredSize(PageEndAlready);
-                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
-                    return;
-                }
 
                 if (_artistItemConfig._songContainer.gameObject.activeInHierarchy || _albumItemConfig._songContainer.gameObject.activeInHierarchy)
                 {
                     SetPreferredSize(NotProvideTurnPage);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                    return;
+                }
+
+                //限制为最后一页
+                if (offset + limit >= _searchedResultCounter)
+                {
+                    SetPreferredSize(PageEndAlready);
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                     return;
                 }
@@ -540,6 +556,7 @@ namespace InnerMediaPlayer.UI
                     }
 
                     ResetSongItem(_songItemConfig._songItems, true);
+                    EscapeWhiteSpace(result.result.songs);
                     _searchedResultCounter = result.result.songCount;
                     result.result.songs = PlaylistUtility.SortByRelationship(result.result.songs, _requestJsonData.s);
                     List<ISongBindable> relationshipSortables = result.result.songs.Cast<ISongBindable>().ToList();
@@ -559,6 +576,7 @@ namespace InnerMediaPlayer.UI
                     }
 
                     ResetCellItem(WhereNullResult.Artist, _artistItemConfig);
+                    EscapeWhiteSpace(result.result.artists);
                     _searchedResultCounter = result.result.artistCount;
                     result.result.artists = PlaylistUtility.SortByRelationship(result.result.artists, _requestJsonData.s);
                     _enabledArtistsCount = result.result.artists.Count;
@@ -576,6 +594,7 @@ namespace InnerMediaPlayer.UI
                     }
 
                     ResetCellItem(WhereNullResult.Album, _albumItemConfig);
+                    EscapeWhiteSpace(result.result.albums);
                     _searchedResultCounter = result.result.albumCount;
                     result.result.albums = PlaylistUtility.SortByRelationship(result.result.albums, _requestJsonData.s);
                     _enabledAlbumsCount = result.result.albums.Count;
@@ -587,6 +606,16 @@ namespace InnerMediaPlayer.UI
             }
             
             progress.Report(TaskStatus.RanToCompletion);
+
+            void EscapeWhiteSpace<T>(List<T> list) where T : IRelationshipSortable
+            {
+                foreach (T item in list)
+                {
+                    if (item.name[0] != ' ')
+                        continue;
+                    item.name = item.name.Substring(1);
+                }
+            }
         }
 
         /// <summary>
