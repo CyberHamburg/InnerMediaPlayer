@@ -110,7 +110,6 @@ namespace InnerMediaPlayer.UI
         private const string PageEndAlready = "已经是末页了";
         private const string NullResult = "此界面下没有搜索结果";
         private const string SearchingNoInterrupt = "请搜索完之后再切换";
-        private const string ReturnLastLevel = "请先返回上一级后再设置搜索模式";
         private const string NotProvideTurnPage = "已展示全部搜索结果，当前页面暂不支持翻页";
 
         //提示框最大宽度将被限制为此数值
@@ -238,13 +237,8 @@ namespace InnerMediaPlayer.UI
                 return;
             }
 
-            if (_artistItemConfig._songContainer.gameObject.activeInHierarchy || _albumItemConfig._songContainer.gameObject.activeInHierarchy)
-            {
-                _searchTypeDropDown.value = (int)_searchType;
-                SetPreferredSize(ReturnLastLevel);
-                _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
-                return;
-            }
+            _artistItemConfig._songContainer.gameObject.SetActive(false);
+            _albumItemConfig._songContainer.gameObject.SetActive(false);
 
             switch (index)
             {
