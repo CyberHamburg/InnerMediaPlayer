@@ -72,9 +72,12 @@ namespace InnerMediaPlayer.UI
         private StringBuilder _addRepeatedly;
         //正在同时加载的歌曲id
         private List<int> _loadingSongsId;
+        private RectTransform[] _containerTransformArray;
         private RectTransform _canvasRectTransform;
+        private CanvasScaler _canvasScaler;
         private Rect _canvasRect;
         private Dropdown _searchTypeDropDown;
+        private Dictionary<RectTransform, IEnumerable<ITextCollection>> _coroutineCollection;
 
         [Header("Display Item Configs")]
         [SerializeField] private SongItemConfig _songItemConfig;
@@ -143,12 +146,14 @@ namespace InnerMediaPlayer.UI
             _addRepeatedly = new StringBuilder(130);
             _loadingSongsId = new List<int>(10);
             _htmlDocument = new HtmlDocument();
+            _coroutineCollection = new Dictionary<RectTransform, IEnumerable<ITextCollection>>(6);
         }
 
         private async void Start()
         {
             _canvasRectTransform = (RectTransform)uiManager.FindCanvas(GetType(), "Canvas", "CanvasRoot").transform;
             _canvasRect = _canvasRectTransform.rect;
+            _canvasScaler = _canvasRectTransform.GetComponent<CanvasScaler>();
 
             _lyric = uiManager.FindUIViewer<Lyric>("Lyric_P", "Canvas", "CanvasRoot");
             _nowPlaying = uiManager.FindUIViewer<NowPlaying>("NowPlaying_P", "Canvas", "CanvasRoot");
@@ -162,6 +167,8 @@ namespace InnerMediaPlayer.UI
             _artistItemConfig._songContainer = FindGameObjectInList("ArtistSongContent", "Display").GetComponent<RectTransform>();
             _albumItemConfig._resultContainer = FindGameObjectInList("AlbumContent", "Display").GetComponent<RectTransform>();
             _albumItemConfig._songContainer = FindGameObjectInList("AlbumSongContent", "Display").GetComponent<RectTransform>();
+            _containerTransformArray = new RectTransform[] {_songItemConfig._songResultContainer, _artistItemConfig._resultContainer,
+                _artistItemConfig._songContainer, _albumItemConfig._resultContainer, _albumItemConfig._songContainer};
             _nullResult = FindGameObjectInList("NullResult", null);
             _artistItemConfig._returnLastPanel = FindGameObjectInList("ReturnLastPanel", "ArtistSongContent").GetComponent<Button>();
             _albumItemConfig._returnLastPanel = FindGameObjectInList("ReturnLastPanel", "AlbumSongContent").GetComponent<Button>();
@@ -182,29 +189,50 @@ namespace InnerMediaPlayer.UI
             InitializeItemConfig(limitNumEveryPage, "DisplayCellItem", _albumItemConfig);
             InitializeItemConfig(limitNumEveryPage, "DisplayCellItem", _artistItemConfig);
 
-            _songItemConfig._songNameOriginalColor = _songItemConfig._songItems[0]._songName.color;
-            _songItemConfig._artistOriginalColor = _songItemConfig._songItems[0]._artist.color;
-            _songItemConfig._songNameOriginalSizeX = _songItemConfig._songItems[0]._songName.rectTransform.rect.width;
-            _songItemConfig._artistOriginalSizeX = _songItemConfig._songItems[0]._artist.rectTransform.rect.width;
-            _artistItemConfig._textOriginalSizeX = _artistItemConfig._items[0]._text.rectTransform.rect.width;
-            _albumItemConfig._textOriginalSizeX = _albumItemConfig._items[0]._text.rectTransform.rect.width;
+            _songItemConfig._songNameOriginalColor = _songItemConfig._songItems[0].NameOne.color;
+            _songItemConfig._artistOriginalColor = _songItemConfig._songItems[0].NameTwo.color;
+            _songItemConfig._songNameOriginalSizeX = _songItemConfig._songItems[0].NameOne.rectTransform.rect.width;
+            _songItemConfig._artistOriginalSizeX = _songItemConfig._songItems[0].NameTwo.rectTransform.rect.width;
+            _artistItemConfig._textOriginalSizeX = _artistItemConfig._items[0].NameOne.rectTransform.rect.width;
+            _albumItemConfig._textOriginalSizeX = _albumItemConfig._items[0].NameOne.rectTransform.rect.width;
         }
 
         private void OnDestroy()
         {
             _searchContainer.onEndEdit.RemoveAllListeners();
         }
-
-        private void Update()
+        private void OnRectTransformDimensionsChange()
         {
-            if (Input.GetKeyDown(KeyCode.Space))
+            if (_canvasRectTransform == null)
+                throw new NullReferenceException();
+            if (_canvasRect == _canvasRectTransform.rect)
+                return;
+            _canvasRect = _canvasRectTransform.rect;
+            if (Mathf.Abs(_canvasRect.height - _canvasScaler.referenceResolution.y) > 0.1f)
+                return;
+            foreach (RectTransform rectTransform in _containerTransformArray)
             {
-                if (_canvasRectTransform == null)
-                    throw new NullReferenceException();
-                if (_canvasRect == _canvasRectTransform.rect)
-                    return;
-                _canvasRect = _canvasRectTransform.rect;
+                if (rectTransform.gameObject.activeInHierarchy)
+                    UpdateCoroutineCollectionValue(rectTransform);
+            }
 
+            foreach (KeyValuePair<RectTransform, IEnumerable<ITextCollection>> keyValuePair in _coroutineCollection)
+            {
+                foreach (ITextCollection item in keyValuePair.Value)
+                {
+                    //换回原宽度
+                    StartNewCoroutineAndStopAllOlds(item.OriginalSizeXOne, item.NameOne, item.TextMask);
+                    StartNewCoroutineAndStopAllOlds(item.OriginalSizeXTwo, item.NameTwo, item.TextMask);
+                }
+            }
+
+            void StartNewCoroutineAndStopAllOlds(float originalSizeX, Text text, RectTransform textMask)
+            {
+                if (text == null || !text.gameObject.activeInHierarchy)
+                    return;
+                text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, originalSizeX);
+                text.StopAllCoroutines();
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
             }
         }
 
@@ -220,9 +248,10 @@ namespace InnerMediaPlayer.UI
                     _root = Instantiate(_prefabManager[prefabName], itemConfig._resultContainer)
                 };
                 cellDetail._image = cellDetail._root.transform.Find("Image").GetComponent<Image>();
-                cellDetail._textMask = cellDetail._root.transform.Find("TextDisplayArea").GetComponent<RectTransform>();
+                cellDetail.TextMask = cellDetail._root.transform.Find("TextDisplayArea").GetComponent<RectTransform>();
                 cellDetail._click = cellDetail._root.transform.Find("Detail").GetComponent<Button>();
-                cellDetail._text = cellDetail._textMask.Find("Text").GetComponent<Text>();
+                cellDetail.NameOne = cellDetail.TextMask.Find("Text").GetComponent<Text>();
+                cellDetail.OriginalSizeXOne = cellDetail.NameOne.rectTransform.rect.width;
                 itemConfig._items[i] = cellDetail;
             }
         }
@@ -252,9 +281,9 @@ namespace InnerMediaPlayer.UI
                     _requestJsonData.limit = _songItemConfig._displayNumPerPage.ToString();
                     for (int i = 0; i < _enabledSongsCount; i++)
                     {
-                        Text songName = _songItemConfig._songItems[i]._songName;
-                        Text artist = _songItemConfig._songItems[i]._artist;
-                        RectTransform textMask = _songItemConfig._songItems[i]._textMask;
+                        Text songName = _songItemConfig._songItems[i].NameOne;
+                        Text artist = _songItemConfig._songItems[i].NameTwo;
+                        RectTransform textMask = _songItemConfig._songItems[i].TextMask;
                         songName.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, songName, textMask));
                         artist.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, artist, textMask));
                     }
@@ -290,8 +319,8 @@ namespace InnerMediaPlayer.UI
                 _requestJsonData.limit = enable._displayNumPerPage.ToString();
                 for (int i = 0; i < enabledCount; i++)
                 {
-                    Text text = enable._items[i]._text;
-                    RectTransform textMask = enable._items[i]._textMask;
+                    Text text = enable._items[i].NameOne;
+                    RectTransform textMask = enable._items[i].TextMask;
                     text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
                 }
             }
@@ -309,10 +338,30 @@ namespace InnerMediaPlayer.UI
             }
         }
 
+        private void UpdateCoroutineCollectionValue(RectTransform rectTransform)
+        {
+            IEnumerable<ITextCollection> collections;
+            if (ReferenceEquals(rectTransform, _songItemConfig._songResultContainer))
+                collections = _songItemConfig._songItems.Cast<ITextCollection>();
+            else if (ReferenceEquals(rectTransform, _artistItemConfig._resultContainer))
+                collections = _artistItemConfig._items.Cast<ITextCollection>();
+            else if (ReferenceEquals(rectTransform, _artistItemConfig._songContainer))
+                collections = _artistItemConfig._songsItems.Cast<ITextCollection>();
+            else if (ReferenceEquals(rectTransform, _albumItemConfig._resultContainer))
+                collections = _albumItemConfig._items.Cast<ITextCollection>();
+            else
+                collections = _albumItemConfig._songsItems.Cast<ITextCollection>();
+
+            if (_coroutineCollection.ContainsKey(rectTransform))
+                _coroutineCollection[rectTransform] = collections;
+            else
+                _coroutineCollection.Add(rectTransform, collections);
+        }
+
         private IEnumerator HorizontalTextRoller(float stayTimer, float rollSpeed, Text text, RectTransform textMask)
         {
             yield return null;
-            if (text.rectTransform.rect.width < textMask.rect.width || text.preferredWidth < text.rectTransform.rect.width)
+            if (text.preferredWidth < text.rectTransform.rect.width)
                 yield break;
             text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, text.preferredWidth);
             float beginningPositionX = text.rectTransform.position.x;
@@ -555,7 +604,7 @@ namespace InnerMediaPlayer.UI
                     result.result.songs = PlaylistUtility.SortByRelationship(result.result.songs, _requestJsonData.s);
                     List<ISongBindable> relationshipSortables = result.result.songs.Cast<ISongBindable>().ToList();
                     _enabledSongsCount = relationshipSortables.Count;
-                    await BindSongData(relationshipSortables, _songItemConfig._songItems, token, progress);
+                    await BindSongData(relationshipSortables, _songItemConfig._songItems, _songItemConfig._songResultContainer, token, progress);
                     progress.Report(TaskStatus.Running);
                     break;
                 case SearchType.Artist:
@@ -619,7 +668,7 @@ namespace InnerMediaPlayer.UI
         /// <param name="uis"></param>
         /// <param name="token"></param>
         /// <returns></returns>
-        private async Task BindSongData(IList<ISongBindable> songs, IList<SongDetail> uis, CancellationTokenSource token, IProgress<TaskStatus> progress)
+        private async Task BindSongData(IList<ISongBindable> songs, IList<SongDetail> uis, RectTransform containerTransform, CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
             //对搜索到的结果实行对数据和ui的绑定
@@ -627,11 +676,11 @@ namespace InnerMediaPlayer.UI
             {
                 ISongBindable song = songs[i];
                 GameObject go = uis[i]._root;
-                Text songName = uis[i]._songName;
-                Text artist = uis[i]._artist;
+                Text songName = uis[i].NameOne;
+                Text artist = uis[i].NameTwo;
                 Button play = uis[i]._play;
                 Button addList = uis[i]._addList;
-                RectTransform textMask = uis[i]._textMask;
+                RectTransform textMask = uis[i].TextMask;
 
                 Image album = uis[i]._album;
                 try
@@ -779,9 +828,9 @@ namespace InnerMediaPlayer.UI
 
             for (int i = 0; i < songs.Count; i++)
             {
-                Text songName = uis[i]._songName;
-                Text artist = uis[i]._artist;
-                RectTransform textMask = uis[i]._textMask;
+                Text songName = uis[i].NameOne;
+                Text artist = uis[i].NameTwo;
+                RectTransform textMask = uis[i].TextMask;
                 if (!songName.gameObject.activeInHierarchy || !artist.gameObject.activeInHierarchy)
                     break;
                 songName.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, songName, textMask));
@@ -807,8 +856,8 @@ namespace InnerMediaPlayer.UI
                 CellItem item = list[i];
                 GameObject go = config._items[i]._root;
                 Image artist = config._items[i]._image;
-                Text artistText = config._items[i]._text;
-                RectTransform textMask = config._items[i]._textMask;
+                Text artistText = config._items[i].NameOne;
+                RectTransform textMask = config._items[i].TextMask;
                 Button openDetailPage = config._items[i]._click;
 
                 Image album = config._items[i]._image;
@@ -875,7 +924,7 @@ namespace InnerMediaPlayer.UI
                     searchedResult.results = PlaylistUtility.SortByRelationship(searchedResult.results, _requestJsonData.s);
                     ExpandSongUINum(searchedResult.results.Count, config._songsItems, config._songContainer);
                     List<ISongBindable> relationshipSortables = searchedResult.results.Cast<ISongBindable>().ToList();
-                    await BindSongData(relationshipSortables, config._songsItems, token, progress);
+                    await BindSongData(relationshipSortables, config._songsItems, config._songContainer, token, progress);
                 }
 
                 string Convert2StandardJson(string json)
@@ -889,8 +938,8 @@ namespace InnerMediaPlayer.UI
 
             for (int i = 0; i < list.Count; i++)
             {
-                Text text = config._items[i]._text;
-                RectTransform textMask = config._items[i]._textMask;
+                Text text = config._items[i].NameOne;
+                RectTransform textMask = config._items[i].TextMask;
                 if (!text.gameObject.activeInHierarchy)
                     break;
                 text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
@@ -915,9 +964,11 @@ namespace InnerMediaPlayer.UI
                 song._addList = song._root.transform.Find("Add").GetComponent<Button>();
                 song._album = song._root.transform.Find("Album").GetComponent<Image>();
                 Transform text = song._root.transform.Find("Text");
-                song._textMask = (RectTransform)text;
-                song._songName = text.Find("Song").GetComponent<Text>();
-                song._artist = text.Find("Artist").GetComponent<Text>();
+                song.TextMask = (RectTransform)text;
+                song.NameOne = text.Find("Song").GetComponent<Text>();
+                song.NameTwo = text.Find("Artist").GetComponent<Text>();
+                song.OriginalSizeXOne = song.NameOne.rectTransform.rect.width;
+                song.OriginalSizeXTwo = song.NameTwo.rectTransform.rect.width;
                 songs.Add(song);
             }
         }
@@ -972,10 +1023,10 @@ namespace InnerMediaPlayer.UI
                 songDetail._play.onClick.RemoveAllListeners();
                 songDetail._addList.gameObject.SetActive(true);
                 songDetail._addList.onClick.RemoveAllListeners();
-                songDetail._songName.color = _songItemConfig._songNameOriginalColor;
-                songDetail._artist.color = _songItemConfig._artistOriginalColor;
-                songDetail._songName.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, _songItemConfig._songNameOriginalSizeX);
-                songDetail._artist.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, _songItemConfig._artistOriginalSizeX);
+                songDetail.NameOne.color = _songItemConfig._songNameOriginalColor;
+                songDetail.NameTwo.color = _songItemConfig._artistOriginalColor;
+                songDetail.NameOne.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, _songItemConfig._songNameOriginalSizeX);
+                songDetail.NameTwo.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, _songItemConfig._artistOriginalSizeX);
             }
         }
 
@@ -988,7 +1039,7 @@ namespace InnerMediaPlayer.UI
             {
                 detail._root.SetActive(false);
                 detail._click.onClick.RemoveAllListeners();
-                detail._text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, itemConfig._textOriginalSizeX);
+                detail.NameOne.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, itemConfig._textOriginalSizeX);
             }
         }
     }
