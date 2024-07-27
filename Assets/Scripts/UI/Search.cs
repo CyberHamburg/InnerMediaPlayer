@@ -86,6 +86,7 @@ namespace InnerMediaPlayer.UI
         private HtmlDocument _htmlDocument;
         private float _currentPageDistance;
         private int _searchedResultCounter;
+        private bool _isAwakeInvoked;
         //正在使用的搜索类型
         private SearchType _searchType;
         //哪个搜索界面中包含空的搜索结果
@@ -147,6 +148,7 @@ namespace InnerMediaPlayer.UI
             _loadingSongsId = new List<int>(10);
             _htmlDocument = new HtmlDocument();
             _coroutineCollection = new Dictionary<RectTransform, IEnumerable<ITextCollection>>(6);
+            _isAwakeInvoked = true;
         }
 
         private async void Start()
@@ -201,10 +203,11 @@ namespace InnerMediaPlayer.UI
         {
             _searchContainer.onEndEdit.RemoveAllListeners();
         }
+
         private void OnRectTransformDimensionsChange()
         {
-            if (_canvasRectTransform == null)
-                throw new NullReferenceException();
+            if (!_isAwakeInvoked)
+                return;
             if (_canvasRect == _canvasRectTransform.rect)
                 return;
             _canvasRect = _canvasRectTransform.rect;
