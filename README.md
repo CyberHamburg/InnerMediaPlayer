@@ -14,11 +14,10 @@
 
 ## 截图
 
-![guide](Documentation/Image/guide1.png)
-![guide1](Documentation/Image/guide2.png)
-![main](Documentation/Image/main.png)
-![main1](Documentation/Image/main1.png)
-![playlist](Documentation/Image/playlist.png)
+![img1](Documentation/Image/img1.png)
+![img2](Documentation/Image/img2.png)
+![guide1](Documentation/Image/guide1.png)
+![guide2](Documentation/Image/guide2.png)
 
 ## 功能
 
@@ -32,6 +31,7 @@
     - JSON批量导入歌曲
 - 未来将会添加
     - 重新整理UI布局
+    - 发布个人歌单
 - 明确不会添加的功能
     - 查看或发表评论
     - 播放MV等视频
