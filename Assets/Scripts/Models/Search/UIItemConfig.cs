@@ -10,6 +10,7 @@ namespace InnerMediaPlayer.Models.Search
     {
         internal string _requestKeywords;
         internal float _textOriginalSizeX;
+        internal int _enabledItemsCount;
         [SerializeField]
         [Range(0, 50)]
         protected internal int _displayNumPerPage = 15;

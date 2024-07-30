@@ -91,9 +91,6 @@ namespace InnerMediaPlayer.UI
         private SearchType _searchType;
         //哪个搜索界面中包含空的搜索结果
         private WhereNullResult _whereNullResult;
-        private int _enabledSongsCount;
-        private int _enabledArtistsCount;
-        private int _enabledAlbumsCount;
 
         [Header("Tip Configs")]
         [SerializeField] [Range(0f, 1f)] private float tipWidthMultiplier;
@@ -290,7 +287,7 @@ namespace InnerMediaPlayer.UI
                     _albumItemConfig._resultContainer.gameObject.SetActive(false);
                     _resultContainer.content = _songItemConfig._songResultContainer;
                     _requestJsonData.limit = _songItemConfig._displayNumPerPage.ToString();
-                    for (int i = 0; i < _enabledSongsCount; i++)
+                    for (int i = 0; i < _songItemConfig._enabledSongsCount; i++)
                     {
                         Text songName = _songItemConfig._songItems[i].NameOne;
                         Text artist = _songItemConfig._songItems[i].NameTwo;
@@ -304,13 +301,13 @@ namespace InnerMediaPlayer.UI
                     if (SetActive(WhereNullResult.Album, false)) break;
                     break;
                 case 1:
-                    SetSearchType("100", SearchType.Artist, _enabledArtistsCount, _artistItemConfig, _albumItemConfig);
+                    SetSearchType("100", SearchType.Artist, _artistItemConfig, _albumItemConfig);
                     if (SetActive(WhereNullResult.Artist, true)) break;
                     if (SetActive(WhereNullResult.Song, false)) break;
                     if (SetActive(WhereNullResult.Album, false)) break;
                     break;
                 case 2:
-                    SetSearchType("10", SearchType.Album, _enabledAlbumsCount, _albumItemConfig, _artistItemConfig);
+                    SetSearchType("10", SearchType.Album, _albumItemConfig, _artistItemConfig);
                     if (SetActive(WhereNullResult.Album, true)) break;
                     if (SetActive(WhereNullResult.Song, false)) break;
                     if (SetActive(WhereNullResult.Artist, false)) break;
@@ -319,7 +316,7 @@ namespace InnerMediaPlayer.UI
                     throw new IndexOutOfRangeException();
             }
 
-            void SetSearchType(string type, SearchType searchType, int enabledCount, UIItemConfig enable, UIItemConfig disable)
+            void SetSearchType(string type, SearchType searchType, UIItemConfig enable, UIItemConfig disable)
             {
                 _requestJsonData.type = type;
                 _searchType = searchType;
@@ -328,12 +325,7 @@ namespace InnerMediaPlayer.UI
                 enable._resultContainer.gameObject.SetActive(true);
                 _resultContainer.content = enable._resultContainer;
                 _requestJsonData.limit = enable._displayNumPerPage.ToString();
-                for (int i = 0; i < enabledCount; i++)
-                {
-                    Text text = enable._items[i].NameOne;
-                    RectTransform textMask = enable._items[i].TextMask;
-                    text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
-                }
+                AutoSingleTextLineRoller(enable);
             }
 
             bool SetActive(WhereNullResult type, bool activeSelf)
@@ -346,6 +338,16 @@ namespace InnerMediaPlayer.UI
                 }
 
                 return isEquals;
+            }
+        }
+
+        private void AutoSingleTextLineRoller(UIItemConfig config)
+        {
+            for (int i = 0; i < config._enabledItemsCount; i++)
+            {
+                Text text = config._items[i].NameOne;
+                RectTransform textMask = config._items[i].TextMask;
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
             }
         }
 
@@ -616,7 +618,7 @@ namespace InnerMediaPlayer.UI
                     _searchedResultCounter = result.result.songCount;
                     result.result.songs = PlaylistUtility.SortByRelationship(result.result.songs, _requestJsonData.s);
                     List<ISongBindable> relationshipSortables = result.result.songs.Cast<ISongBindable>().ToList();
-                    _enabledSongsCount = relationshipSortables.Count;
+                    _songItemConfig._enabledSongsCount = relationshipSortables.Count;
                     await BindSongData(relationshipSortables, _songItemConfig._songItems, _songItemConfig._songResultContainer, token, progress);
                     progress.Report(TaskStatus.Running);
                     break;
@@ -635,7 +637,7 @@ namespace InnerMediaPlayer.UI
                     EscapeWhiteSpace(result.result.artists);
                     _searchedResultCounter = result.result.artistCount;
                     result.result.artists = PlaylistUtility.SortByRelationship(result.result.artists, _requestJsonData.s);
-                    _enabledArtistsCount = result.result.artists.Count;
+                    _artistItemConfig._enabledItemsCount = result.result.artists.Count;
                     await BindCellData(false, Network.ArtistUrl, Network.ArtistXPath, result.result.artists, _artistItemConfig, token, progress);
                     progress.Report(TaskStatus.Running);
                     break;
@@ -653,7 +655,7 @@ namespace InnerMediaPlayer.UI
                     EscapeWhiteSpace(result.result.albums);
                     _searchedResultCounter = result.result.albumCount;
                     result.result.albums = PlaylistUtility.SortByRelationship(result.result.albums, _requestJsonData.s);
-                    _enabledAlbumsCount = result.result.albums.Count;
+                    _albumItemConfig._enabledItemsCount = result.result.albums.Count;
                     await BindCellData(true, Network.AlbumUrl, Network.AlbumXPath, result.result.albums, _albumItemConfig, token, progress);
                     progress.Report(TaskStatus.Running);
                     break;
@@ -922,6 +924,7 @@ namespace InnerMediaPlayer.UI
                         config._resultContainer.gameObject.SetActive(true);
                         _resultContainer.content = config._resultContainer;
                         config._returnLastPanel.gameObject.SetActive(false);
+                        AutoSingleTextLineRoller(config);
                     });
 
                     ResetSongItem(config._songsItems, false);

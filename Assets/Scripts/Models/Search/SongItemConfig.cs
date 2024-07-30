@@ -22,6 +22,8 @@ namespace InnerMediaPlayer.Models.Search
 
         internal string _requestKeywords;
 
+        internal int _enabledSongsCount;
+
         internal List<SongDetail> _songItems;
 
         //ËÑË÷½á¹ûµÄÈÝÆ÷
