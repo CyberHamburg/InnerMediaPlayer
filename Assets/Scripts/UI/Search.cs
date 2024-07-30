@@ -127,6 +127,14 @@ namespace InnerMediaPlayer.UI
             }
         }
 
+        private float RollSpeed
+        {
+            get
+            {
+                return Screen.height / _canvasScaler.referenceResolution.y * rollSpeed;
+            }
+        }
+
         [Inject]
         private void Initialized(Network network, PrefabManager prefabManager, Crypto crypto, Cookies cookies, 
             TaskQueue searchTaskQueue, TaskQueue<float, float> tipsTaskQueue, PlaylistUtility playlistUtility)
@@ -235,7 +243,7 @@ namespace InnerMediaPlayer.UI
                     return;
                 text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, originalSizeX);
                 text.StopAllCoroutines();
-                text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
             }
         }
 
@@ -287,8 +295,8 @@ namespace InnerMediaPlayer.UI
                         Text songName = _songItemConfig._songItems[i].NameOne;
                         Text artist = _songItemConfig._songItems[i].NameTwo;
                         RectTransform textMask = _songItemConfig._songItems[i].TextMask;
-                        songName.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, songName, textMask));
-                        artist.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, artist, textMask));
+                        songName.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, songName, textMask));
+                        artist.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, artist, textMask));
                     }
 
                     if (SetActive(WhereNullResult.Song, true)) break;
@@ -324,7 +332,7 @@ namespace InnerMediaPlayer.UI
                 {
                     Text text = enable._items[i].NameOne;
                     RectTransform textMask = enable._items[i].TextMask;
-                    text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
+                    text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
                 }
             }
 
@@ -366,11 +374,13 @@ namespace InnerMediaPlayer.UI
             yield return null;
             if (text.preferredWidth < text.rectTransform.rect.width)
                 yield break;
-            text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, text.preferredWidth);
+            float textPreferredWidth = text.preferredWidth;
+            text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 0f, textPreferredWidth);
+            float endPositionX = text.rectTransform.position.x;
+            text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, textPreferredWidth);
             float beginningPositionX = text.rectTransform.position.x;
-            float endingPositionX = textMask.position.x + textMask.rect.width / 2f;
             Vector2 beginningPosition = (Vector2)text.rectTransform.position;
-            Vector2 endingPosition = new Vector2(endingPositionX - text.rectTransform.rect.width / 2f, text.rectTransform.position.y);
+            Vector2 endingPosition = new Vector2(endPositionX, text.rectTransform.position.y);
             Vector2 normalizedVelocity = (endingPosition - beginningPosition).normalized;
 
             while (true)
@@ -836,8 +846,8 @@ namespace InnerMediaPlayer.UI
                 RectTransform textMask = uis[i].TextMask;
                 if (!songName.gameObject.activeInHierarchy || !artist.gameObject.activeInHierarchy)
                     break;
-                songName.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, songName, textMask));
-                artist.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, artist, textMask));
+                songName.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, songName, textMask));
+                artist.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, artist, textMask));
             }
 
             _isSearching = false;
@@ -945,7 +955,7 @@ namespace InnerMediaPlayer.UI
                 RectTransform textMask = config._items[i].TextMask;
                 if (!text.gameObject.activeInHierarchy)
                     break;
-                text.StartCoroutine(HorizontalTextRoller(stayTimer, rollSpeed, text, textMask));
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
             }
 
             _isSearching = false;
