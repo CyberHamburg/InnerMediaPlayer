@@ -416,7 +416,6 @@ namespace InnerMediaPlayer.UI
                 displayTimer -= Time.fixedDeltaTime;
                 if (token.IsCancellationRequested)
                 {
-                    token.CallBack();
                     progress.Report(TaskStatus.Canceled);
                     return;
                 }
@@ -430,7 +429,6 @@ namespace InnerMediaPlayer.UI
                 await Task.Yield();
                 if (token.IsCancellationRequested)
                 {
-                    token.CallBack();
                     progress.Report(TaskStatus.Canceled);
                     return;
                 }
@@ -443,7 +441,6 @@ namespace InnerMediaPlayer.UI
                 fadeOutTimer -= Time.fixedDeltaTime;
                 if (token.IsCancellationRequested)
                 {
-                    token.CallBack();
                     progress.Report(TaskStatus.Canceled);
                     return;
                 }
@@ -716,7 +713,6 @@ namespace InnerMediaPlayer.UI
                 //如果有新搜索动作产生则取消原搜索动作
                 if (token.IsCancellationRequested)
                 {
-                    token.CallBack();
                     progress.Report(TaskStatus.Canceled);
                     return;
                 }
@@ -882,7 +878,6 @@ namespace InnerMediaPlayer.UI
                 //如果有新搜索动作产生则取消原搜索动作
                 if (token.IsCancellationRequested)
                 {
-                    token.CallBack();
                     progress.Report(TaskStatus.Canceled);
                     return;
                 }

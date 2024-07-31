@@ -10,7 +10,20 @@ namespace InnerMediaPlayer.Tools
     {
         private System.Threading.CancellationTokenSource _token;
 
-        internal bool IsCancellationRequested => _token.IsCancellationRequested;
+        internal bool IsCancellationRequested
+        {
+            get
+            {
+                bool isCancellationRequested = _token.IsCancellationRequested;
+                if (isCancellationRequested)
+                {
+                    _token.Dispose();
+                    _token = new System.Threading.CancellationTokenSource();
+                }
+
+                return isCancellationRequested;
+            }
+        }
 
         internal CancellationTokenSource()
         {
@@ -18,12 +31,6 @@ namespace InnerMediaPlayer.Tools
         }
 
         internal void Cancel() => _token.Cancel();
-
-        internal void CallBack()
-        {
-            _token.Dispose();
-            _token = new System.Threading.CancellationTokenSource();
-        }
     }
 
     /// <summary>

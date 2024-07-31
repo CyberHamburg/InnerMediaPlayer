@@ -109,7 +109,6 @@ namespace InnerMediaPlayer.UI
                 yield return null;
                 if(token.IsCancellationRequested)
                 {
-                    token.CallBack();
                     progress.Report(TaskStatus.Canceled);
                     yield break;
                 }

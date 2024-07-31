@@ -467,7 +467,6 @@ namespace InnerMediaPlayer.Logical
                     await Task.Yield();
                     if (token.IsCancellationRequested || !Application.isPlaying)
                     {
-                        token.CallBack();
                         progress.Report(TaskStatus.Canceled);
                         return;
                     }
