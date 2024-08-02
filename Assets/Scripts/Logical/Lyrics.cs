@@ -365,12 +365,12 @@ namespace InnerMediaPlayer.Logical
                 await Task.Yield();
                 if (!Application.isPlaying)
                     return true;
-                resetContentPosY();
                 if (token.IsCancellationRequested)
                 {
                     progress.Report(TaskStatus.Canceled);
                     return true;
                 }
+                resetContentPosY();
 
                 if (_playingList.Pause)
                     _minusStopwatch.Start();
