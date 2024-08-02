@@ -883,7 +883,6 @@ namespace InnerMediaPlayer.UI
                 }
                 openDetailPage.onClick.AddListener(OpenPage);
 
-                //TODO:打开艺人旗下所有歌曲
                 async void OpenPage()
                 {
                     _isSearching = true;
