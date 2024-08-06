@@ -39,6 +39,7 @@ namespace InnerMediaPlayer.Tools
     internal class TaskQueue
     {
         private readonly Queue<Func<CancellationTokenSource, IProgress<TaskStatus>, Task>> _taskQueue;
+        protected Func<CancellationTokenSource, IProgress<TaskStatus>, Task> _runningFunc;
         protected TaskProgress process;
         protected CancellationTokenSource cancelTokenSource;
         protected bool waitForCancel;
@@ -63,7 +64,7 @@ namespace InnerMediaPlayer.Tools
         {
             while (_taskQueue.Count > 0 && !waitForCancel)
             {
-                Func<CancellationTokenSource, IProgress<TaskStatus>, Task> newTaskFunc = _taskQueue.Dequeue();
+                _runningFunc = _taskQueue.Dequeue();
                 if (process != null && process.Status == TaskStatus.Running)
                 {
                     Stop();
@@ -77,7 +78,7 @@ namespace InnerMediaPlayer.Tools
                 waitForCancel = false;
                 try
                 {
-                    await newTaskFunc(cancelTokenSource, process);
+                    await _runningFunc(cancelTokenSource, process);
                 }
                 catch (MissingReferenceException)
                 {
@@ -86,12 +87,17 @@ namespace InnerMediaPlayer.Tools
             }
         }
 
-        protected internal void Stop()
+        internal virtual void Stop()
+        {
+            Stop(_runningFunc == null ? GetType().Name : _runningFunc.Method.Name);
+        }
+
+        protected void Stop(string methodName)
         {
             if (cancelTokenSource == null)
                 throw new NullReferenceException("取消令牌为空");
 #if UNITY_DEBUG
-            Debug.Log("停止任务运行");
+            Debug.Log($"停止{methodName}任务运行");
 #endif
             cancelTokenSource.Cancel();
         }
@@ -109,6 +115,7 @@ namespace InnerMediaPlayer.Tools
     internal class TaskQueue<TParam1> : TaskQueue
     {
         private readonly Queue<Func<TParam1, CancellationTokenSource, IProgress<TaskStatus>, Task>> _taskQueue;
+        protected new Func<TParam1, CancellationTokenSource, IProgress<TaskStatus>, Task> _runningFunc;
 
         internal TaskQueue()
         {
@@ -127,7 +134,7 @@ namespace InnerMediaPlayer.Tools
         {
             while (_taskQueue.Count > 0 && !waitForCancel)
             {
-                Func<TParam1, CancellationTokenSource, IProgress<TaskStatus>, Task> newTaskFunc = _taskQueue.Dequeue();
+                _runningFunc = _taskQueue.Dequeue();
                 if (process != null && process.Status == TaskStatus.Running)
                 {
                     Stop();
@@ -141,7 +148,7 @@ namespace InnerMediaPlayer.Tools
                 waitForCancel = false;
                 try
                 {
-                    await newTaskFunc(param1, cancelTokenSource, process);
+                    await _runningFunc(param1, cancelTokenSource, process);
                 }
                 catch (MissingReferenceException)
                 {
@@ -155,6 +162,11 @@ namespace InnerMediaPlayer.Tools
             t.CallBack?.Invoke();
             AddTask(t.Param1, t.Func);
         }
+
+        internal override void Stop()
+        {
+            Stop(_runningFunc == null ? GetType().Name : _runningFunc.Method.Name);
+        }
     }
 
     /// <summary>
@@ -163,6 +175,7 @@ namespace InnerMediaPlayer.Tools
     internal class TaskQueue<TParam1, TParam2> : TaskQueue<TParam1>
     {
         private readonly Queue<Func<TParam1, TParam2, CancellationTokenSource, IProgress<TaskStatus>, Task>> _taskQueue;
+        protected new Func<TParam1, TParam2, CancellationTokenSource, IProgress<TaskStatus>, Task> _runningFunc;
 
         internal TaskQueue()
         {
@@ -181,7 +194,7 @@ namespace InnerMediaPlayer.Tools
         {
             while (_taskQueue.Count > 0 && !waitForCancel)
             {
-                Func<TParam1, TParam2, CancellationTokenSource, IProgress<TaskStatus>, Task> newTaskFunc = _taskQueue.Dequeue();
+                _runningFunc = _taskQueue.Dequeue();
                 if (process.Status == TaskStatus.Running)
                 {
                     Stop();
@@ -195,7 +208,7 @@ namespace InnerMediaPlayer.Tools
                 waitForCancel = false;
                 try
                 {
-                    await newTaskFunc(param1, param2, cancelTokenSource, process);
+                    await _runningFunc(param1, param2, cancelTokenSource, process);
                 }
                 catch (MissingReferenceException)
                 {
@@ -209,6 +222,11 @@ namespace InnerMediaPlayer.Tools
             t.CallBack?.Invoke();
             AddTask(t.Param1, t.Param2, t.Func);
         }
+
+        internal override void Stop()
+        {
+            Stop(_runningFunc == null ? GetType().Name : _runningFunc.Method.Name);
+        }
     }
 
     /// <summary>
@@ -217,6 +235,7 @@ namespace InnerMediaPlayer.Tools
     internal class TaskQueue<TParam1, TParam2, TParam3> : TaskQueue<TParam1, TParam2>
     {
         private readonly Queue<Func<TParam1, TParam2, TParam3, CancellationTokenSource, IProgress<TaskStatus>, Task>> _taskQueue;
+        protected new Func<TParam1, TParam2, TParam3, CancellationTokenSource, IProgress<TaskStatus>, Task> _runningFunc;
 
         internal TaskQueue()
         {
@@ -236,7 +255,7 @@ namespace InnerMediaPlayer.Tools
         {
             while (_taskQueue.Count > 0 && !waitForCancel)
             {
-                Func<TParam1, TParam2, TParam3, CancellationTokenSource, IProgress<TaskStatus>, Task> newTaskFunc = _taskQueue.Dequeue();
+                _runningFunc = _taskQueue.Dequeue();
                 if (process.Status == TaskStatus.Running)
                 {
                     Stop();
@@ -250,7 +269,7 @@ namespace InnerMediaPlayer.Tools
                 waitForCancel = false;
                 try
                 {
-                    await newTaskFunc(param1, param2, param3, cancelTokenSource, process);
+                    await _runningFunc(param1, param2, param3, cancelTokenSource, process);
                 }
                 catch (MissingReferenceException)
                 {
@@ -263,6 +282,11 @@ namespace InnerMediaPlayer.Tools
         {
             t.CallBack?.Invoke();
             AddTask(t.Param1, t.Param2, t.Param3, t.Func);
+        }
+
+        internal override void Stop()
+        {
+            Stop(_runningFunc == null ? GetType().Name : _runningFunc.Method.Name);
         }
     }
 }
