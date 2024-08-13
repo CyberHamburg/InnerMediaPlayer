@@ -179,8 +179,8 @@ namespace InnerMediaPlayer.UI
             _nullResult = FindGameObjectInList("NullResult", null);
             _artistItemConfig._returnLastPanel = FindGameObjectInList("ReturnLastPanel", "ArtistSongContent").GetComponent<Button>();
             _albumItemConfig._returnLastPanel = FindGameObjectInList("ReturnLastPanel", "AlbumSongContent").GetComponent<Button>();
-            _tipBackground = FindGameObjectInList("Tip", null).GetComponent<Image>();
-            _tipText = _tipBackground.GetComponentInChildren<Text>(true);
+            _tipBackground = FindGameObjectInList("Image", "Tip").GetComponent<Image>();
+            _tipText = FindGameObjectInList("Text", "Tip").GetComponent<Text>();
             _graphics = new Graphic[] { _tipText, _tipBackground };
 
             _searchContainer.onEndEdit.AddListener(SearchAndDisplay);
@@ -402,6 +402,7 @@ namespace InnerMediaPlayer.UI
         private async Task FadeOut(float displayTimer, float fadeOutTimeInterval, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
+            _tipText.gameObject.SetActive(true);
             _tipBackground.gameObject.SetActive(true);
             foreach (Graphic graphic in _graphics)
             {
