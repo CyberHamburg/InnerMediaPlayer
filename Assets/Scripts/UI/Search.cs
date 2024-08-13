@@ -745,6 +745,12 @@ namespace InnerMediaPlayer.UI
                     SetPreferredSize(e.Message);
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
                 }
+                catch (NullReferenceException e)
+                {
+                    reason = CannotListenReason.NetworkError;
+                    SetPreferredSize(e.Message);
+                    _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
+                }
                 catch (MissingReferenceException)
                 {
                     return;
