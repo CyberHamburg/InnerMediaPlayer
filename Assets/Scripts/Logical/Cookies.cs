@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using LitJson;
@@ -12,7 +13,9 @@ namespace InnerMediaPlayer.Logical
     {
         public List<Cookie> allCookies;
         [JsonIgnore]
-        private readonly string _fileLocation;
+        private Dictionary<string, Cookie> _allCookiesByName;
+        [JsonIgnore]
+        private readonly string _fileLocation = Path.Combine(UnityEngine.Application.persistentDataPath, "Cookie.json");
         [JsonIgnore]
         private StringBuilder _cookies;
         [JsonIgnore]
@@ -22,12 +25,15 @@ namespace InnerMediaPlayer.Logical
         [JsonIgnore]
         private const string CsrfTokenName = "__csrf";
         [JsonIgnore]
-        internal string GetCookies
+        internal int Count => allCookies.Count;
+
+        public string this[params string[] keys]
         {
             get
             {
-                _cookies = new StringBuilder();
-                foreach (Cookie cookie in allCookies)
+                _cookies ??= new StringBuilder();
+                IEnumerable<Cookie> cookies = from cookie in allCookies join key in keys on cookie.name equals key select cookie;
+                foreach (Cookie cookie in cookies)
                 {
                     _cookies.Append(cookie.name).Append('=').Append(cookie.value).Append(';');
                 }
@@ -36,32 +42,35 @@ namespace InnerMediaPlayer.Logical
                 return _cookies.ToString();
             }
         }
-        [JsonIgnore]
-        internal int Count => allCookies.Count;
-
-        public Cookies()
-        {
-            allCookies = new List<Cookie>();
-            _fileLocation = Path.Combine(UnityEngine.Application.persistentDataPath, "Cookie.json");
-        }
 
         internal void Add(string name, string value)
         {
             if (string.IsNullOrEmpty(name))
                 throw new ArgumentNullException($"{nameof(name)}不能为空");
+            if (_allCookiesByName.ContainsKey(name))
+            {
+                Replace(name, value);
+                return;
+            }
+            
             allCookies.Add(new Cookie(name, value));
+            _allCookiesByName.Add(name, allCookies[allCookies.Count - 1]);
         }
 
         internal void Remove(string name)
         {
             if (string.IsNullOrEmpty(name))
                 throw new ArgumentNullException($"{nameof(name)}不能为空");
-            allCookies.RemoveAll(cookie => cookie.name.Equals(name));
+            if (!_allCookiesByName.TryGetValue(name, out Cookie cookie)) 
+                return;
+            allCookies.Remove(cookie);
+            _allCookiesByName.Remove(name);
         }
 
         internal void Replace(string name,string newValue)
         {
-            Cookie cookie = allCookies.Find(cookie => cookie.name.Equals(name));
+            if (!_allCookiesByName.TryGetValue(name, out Cookie cookie))
+                throw new NullReferenceException($"不存在名为{name}的cookie!");
             cookie.value = newValue;
         }
 
@@ -71,8 +80,9 @@ namespace InnerMediaPlayer.Logical
             {
                 await Task.Yield();
             }
-            Cookie cookie =allCookies.Find(cookie => cookie.name.Equals(name));
-            return cookie;
+            
+            _allCookiesByName.TryGetValue(name, out Cookie foundCookie);
+            return foundCookie ?? throw new NullReferenceException($"不存在名为{name}的cookie!");
         }
 
         internal async Task<Cookie> GetCsrfTokenAsync()
@@ -86,6 +96,7 @@ namespace InnerMediaPlayer.Logical
         internal void Clear()
         {
             allCookies.Clear();
+            _allCookiesByName.Clear();
         }
 
         internal async Task LoadFromFileAsync()
@@ -98,6 +109,10 @@ namespace InnerMediaPlayer.Logical
             string json = Encoding.UTF8.GetString(data);
             Cookies cookies = JsonMapper.ToObject<Cookies>(json);
             allCookies = cookies.allCookies;
+            _allCookiesByName ??= new Dictionary<string, Cookie>(allCookies.Count + 1);
+            foreach (Cookie cookie in allCookies)
+                _allCookiesByName.Add(cookie.name, cookie);
+            //TODO:添加sDeviceId等默认cookie
             _loadDone = true;
         }
 
