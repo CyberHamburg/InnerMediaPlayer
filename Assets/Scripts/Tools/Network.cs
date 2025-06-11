@@ -20,7 +20,7 @@ namespace InnerMediaPlayer.Tools
     {
         internal const string SearchUrl = "https://music.163.com/weapi/cloudsearch/get/web";
         //旧url,使用get依旧可以得到请求，但无法获得会员歌曲信息
-        internal const string SongUrl = "http://music.163.com/api/song/enhance/player/url";
+        internal const string SongUrl = "https://music.163.com/api/song/enhance/player/url";
         //获取歌曲信息的新url
         internal const string SongUrlPost = "https://music.163.com/weapi/song/enhance/player/url/v1";
         internal const string LoginUrl = "https://music.163.com/weapi/login/qrcode/unikey";
@@ -28,7 +28,7 @@ namespace InnerMediaPlayer.Tools
         internal const string ArtistUrl = "https://music.163.com/artist";
         internal const string AlbumUrl = "https://music.163.com/album";
         internal const string QrCodeUrl = "https://music.163.com/weapi/login/qrcode/client/login";
-        internal const string QrCodeGenerateUrl = "http://music.163.com/login";
+        internal const string QrCodeGenerateUrl = "https://music.163.com/login";
         internal const string LoginRefreshUrl = "https://music.163.com/weapi/login/token/refresh";
 
         internal const string Params = "params";
@@ -42,12 +42,14 @@ namespace InnerMediaPlayer.Tools
         private readonly Crypto _crypto;
         private readonly Cookies _cookies;
         private readonly Dictionary<string, string> _formFields;
+        private readonly Dictionary<string, string> _urlRequestCookies;
 
         internal Network(Crypto crypto, Cookies cookies)
         {
             _crypto = crypto;
             _cookies = cookies;
             _formFields = new Dictionary<string, string>(5) { { EncSeckey, _crypto._encSecKey } };
+            _urlRequestCookies = new Dictionary<string, string>();
             _songRequest = new SongRequest();
         }
 
@@ -55,6 +57,7 @@ namespace InnerMediaPlayer.Tools
         {
             Cookies.Cookie csrfToken = await _cookies.GetCsrfTokenAsync();
             _songRequest.csrf_token = csrfToken.value;
+            _urlRequestCookies.Add(QrCodeUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName]);
         }
 
         internal async Task<(string json, Dictionary<string, string> headers)> PostWithHeadersAsync(string url, string json)
@@ -64,6 +67,7 @@ namespace InnerMediaPlayer.Tools
             form.AddField("params", param);
             form.AddField("encSecKey", _crypto._encSecKey);
             using UnityWebRequest webRequest = UnityWebRequest.Post(url, form);
+            SetRequestHeaders(webRequest, url);
             await webRequest.SendWebRequest();
             if (webRequest.result != UnityWebRequest.Result.Success)
                 throw new UnityException(webRequest.error);
@@ -85,13 +89,14 @@ namespace InnerMediaPlayer.Tools
             form.AddField("params", param);
             form.AddField("encSecKey", _crypto._encSecKey);
             using UnityWebRequest webRequest = UnityWebRequest.Post(url, form);
+            SetRequestHeaders(webRequest, url);
             await webRequest.SendWebRequest();
             if (webRequest.result != UnityWebRequest.Result.Success)
                 throw new UnityException(webRequest.error);
             return (webRequest.downloadHandler.text, webRequest.GetResponseHeaders());
         }
 
-        internal async Task<string> PostAsync(string url, string json, bool needCsrfToken = false, bool needCookies = false)
+        internal async Task<string> PostAsync(string url, string json, bool needCsrfToken = false)
         {
             string param = _crypto.Encrypt(json);
             if (_formFields.ContainsKey(Params))
@@ -109,7 +114,7 @@ namespace InnerMediaPlayer.Tools
             }
 
             using UnityWebRequest webRequest = UnityWebRequest.Post(url, _formFields);
-            SetRequestHeaders(webRequest, needCookies);
+            SetRequestHeaders(webRequest, url);
             await webRequest.SendWebRequest();
             if (webRequest.result != UnityWebRequest.Result.Success)
                 throw new UnityException(webRequest.error);
@@ -117,7 +122,7 @@ namespace InnerMediaPlayer.Tools
             return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
         }
 
-        internal async Task<string> PostAsync<T>(string url, T @object, bool needCsrfToken = false, bool needCookies = false)
+        internal async Task<string> PostAsync<T>(string url, T @object, bool needCsrfToken = false)
             where T : class
         {
             string param = _crypto.Encrypt(@object);
@@ -136,49 +141,49 @@ namespace InnerMediaPlayer.Tools
             }
 
             using UnityWebRequest webRequest = UnityWebRequest.Post(url, _formFields);
-            SetRequestHeaders(webRequest, needCookies);
+            SetRequestHeaders(webRequest, url);
             await webRequest.SendWebRequest();
             if (webRequest.result == UnityWebRequest.Result.Success)
                 return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
             //快速点击两次会出现Unity65错误，当前最佳解决方法为再post一遍
             using UnityWebRequest request = UnityWebRequest.Post(url, _formFields);
-            SetRequestHeaders(request, needCookies);
+            SetRequestHeaders(request, url);
             await request.SendWebRequest();
             if (request.result != UnityWebRequest.Result.Success)
                 throw new HttpRequestException(request.error);
             return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
         }
 
-        internal async Task<string> PostAsync(string url, bool needCookies = false)
+        internal async Task<string> PostAsync(string url)
         {
             using UnityWebRequest unityWebRequest = UnityWebRequest.Post(url, _formFields);
-            SetRequestHeaders(unityWebRequest, needCookies);
+            SetRequestHeaders(unityWebRequest, url);
             await unityWebRequest.SendWebRequest();
             if (unityWebRequest.result == UnityWebRequest.Result.Success)
                 return Encoding.UTF8.GetString(unityWebRequest.downloadHandler.data);
             using UnityWebRequest webRequest = UnityWebRequest.Post(url, _formFields);
-            SetRequestHeaders(webRequest, needCookies);
+            SetRequestHeaders(webRequest, url);
             await webRequest.SendWebRequest();
             if (webRequest.result != UnityWebRequest.Result.Success)
                 throw new UnityException(webRequest.error);
             return Encoding.UTF8.GetString(webRequest.downloadHandler.data);
         }
 
-        internal async Task<string> PostAsync(string url, WWWForm wwwForm, bool needCookies = false)
+        internal async Task<string> PostAsync(string url, WWWForm wwwForm)
         {
             using UnityWebRequest unityWebRequest = UnityWebRequest.Post(url, wwwForm);
-            SetRequestHeaders(unityWebRequest, needCookies);
+            SetRequestHeaders(unityWebRequest, url);
             await unityWebRequest.SendWebRequest();
             if (unityWebRequest.result != UnityWebRequest.Result.Success)
                 throw new UnityException(unityWebRequest.error);
             return Encoding.UTF8.GetString(unityWebRequest.downloadHandler.data);
         }
 
-        internal async Task<string> GetAsync(string url, bool needCookies = false, params string[] keyValue)
+        internal async Task<string> GetAsync(string url, params string[] keyValue)
         {
             Uri uri = CombineUri(url, keyValue);
             using UnityWebRequest unityWebRequest = UnityWebRequest.Get(uri);
-            SetRequestHeaders(unityWebRequest, needCookies);
+            SetRequestHeaders(unityWebRequest, url);
             await unityWebRequest.SendWebRequest();
             if (unityWebRequest.result != UnityWebRequest.Result.Success)
                 throw new UnityException(unityWebRequest.error);
@@ -188,7 +193,7 @@ namespace InnerMediaPlayer.Tools
         internal async Task<AudioClip> GetAudioClipAsync(string url, string md5, AudioType audioType, string songType = "")
         {
             using UnityWebRequest unityWebRequest = UnityWebRequestMultimedia.GetAudioClip(url, audioType);
-            SetRequestHeaders(unityWebRequest, false);
+            SetRequestHeaders(unityWebRequest, string.Empty);
             await unityWebRequest.SendWebRequest();
             if (unityWebRequest.result != UnityWebRequest.Result.Success)
                 throw new UnityException(unityWebRequest.error);
@@ -218,7 +223,7 @@ namespace InnerMediaPlayer.Tools
         {
             _songRequest.ids = id.ToString();
             //由歌曲获取到歌曲详情，包括播放的url
-            string json = await PostAsync(SongUrlPost, _songRequest, true, true);
+            string json = await PostAsync(SongUrlPost, _songRequest, true);
 #if UNITY_EDITOR && UNITY_DEBUG
             Debug.Log(json);
 #endif
@@ -230,7 +235,7 @@ namespace InnerMediaPlayer.Tools
         {
             Uri uri = CombineUri(url, keyValue);
             using UnityWebRequest unityWebRequest = UnityWebRequestTexture.GetTexture(uri);
-            SetRequestHeaders(unityWebRequest, false);
+            SetRequestHeaders(unityWebRequest, string.Empty);
             await unityWebRequest.SendWebRequest();
             if (unityWebRequest.result == UnityWebRequest.Result.Success)
                 return DownloadHandlerTexture.GetContent(unityWebRequest);
@@ -292,7 +297,7 @@ namespace InnerMediaPlayer.Tools
             await fileStream.WriteAsync(downloadHandler.data, 0, downloadHandler.data.Length);
         }
 
-        private void SetRequestHeaders(UnityWebRequest unityWebRequest, bool needCookies)
+        private void SetRequestHeaders(UnityWebRequest unityWebRequest, string requestedUrl)
         {
             unityWebRequest.SetRequestHeader("User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
@@ -300,8 +305,8 @@ namespace InnerMediaPlayer.Tools
             unityWebRequest.SetRequestHeader("Accept", "*/*");
             unityWebRequest.SetRequestHeader("Accept-Language",
                 "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-TW;q=0.6,or;q=0.5");
-            if (needCookies)
-                unityWebRequest.SetRequestHeader("Cookie", _cookies.GetCookies);
+            if (_urlRequestCookies.TryGetValue(requestedUrl, out string cookie))
+                unityWebRequest.SetRequestHeader("Cookie", cookie);
         }
     }
 }
