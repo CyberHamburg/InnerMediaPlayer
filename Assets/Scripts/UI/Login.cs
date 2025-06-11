@@ -48,7 +48,7 @@ namespace InnerMediaPlayer.UI
 
                 Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
                 Dictionary<string, string> crsfToken = new Dictionary<string, string>(1) { { Network.CsrfToken, cookie.value } };
-                string result = await _network.PostAsync(Network.LoginRefreshUrl, crsfToken, true, true);
+                string result = await _network.PostAsync(Network.LoginRefreshUrl, crsfToken, true);
                 LoginRefreshResult refreshCode = JsonMapper.ToObject<LoginRefreshResult>(result);
                 //貌似这个状态码是登录过期？
                 if (refreshCode.code == 301)

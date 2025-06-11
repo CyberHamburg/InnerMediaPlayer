@@ -895,7 +895,7 @@ namespace InnerMediaPlayer.UI
                     _isSearching = true;
                     SetPreferredSize(Searching);
                     _tipTaskQueue.AddTask(tipDisplayNum, tipFadeOutNum, FadeOut);
-                    string htmlPage = await _network.GetAsync(requestUrl, true, "id", item.id.ToString());
+                    string htmlPage = await _network.GetAsync(requestUrl, "id", item.id.ToString());
                     //从静态html中分离所需要的数据
                     _htmlDocument.LoadHtml(htmlPage);
                     HtmlNode node = _htmlDocument.DocumentNode.SelectSingleNode(jsonNodePath);
@@ -995,7 +995,7 @@ namespace InnerMediaPlayer.UI
             _isSearching = true;
             SetPreferredSize(Searching);
             _tipTaskQueue.AddTask(0f, tipFadeOutNum, FadeOut);
-            string json = await _network.PostAsync(Network.SearchUrl, true);
+            string json = await _network.PostAsync(Network.SearchUrl);
             SearchedResult result = JsonMapper.ToObject<SearchedResult>(json);
 #if UNITY_DEBUG
             Debug.Log(json);
