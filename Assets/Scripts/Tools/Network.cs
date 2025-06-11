@@ -19,17 +19,14 @@ namespace InnerMediaPlayer.Tools
     internal class Network : IInitializable
     {
         internal const string SearchUrl = "https://music.163.com/weapi/cloudsearch/get/web";
-        //旧url,使用get依旧可以得到请求，但无法获得会员歌曲信息
-        internal const string SongUrl = "https://music.163.com/api/song/enhance/player/url";
-        //获取歌曲信息的新url
-        internal const string SongUrlPost = "https://music.163.com/weapi/song/enhance/player/url/v1";
+        internal const string SongUrl = "https://music.163.com/weapi/song/enhance/player/url/v1";
         internal const string LoginUrl = "https://music.163.com/weapi/login/qrcode/unikey";
         internal const string LyricUrl = "https://music.163.com/weapi/song/lyric";
         internal const string ArtistUrl = "https://music.163.com/artist";
         internal const string AlbumUrl = "https://music.163.com/album";
         internal const string QrCodeUrl = "https://music.163.com/weapi/login/qrcode/client/login";
         internal const string QrCodeGenerateUrl = "https://music.163.com/login";
-        internal const string LoginRefreshUrl = "https://music.163.com/weapi/login/token/refresh";
+        internal const string LoginRefreshUrl = "https://music.163.com/weapi/need/login/forplay";
 
         internal const string Params = "params";
         internal const string CsrfToken = "csrf_token";
@@ -223,7 +220,7 @@ namespace InnerMediaPlayer.Tools
         {
             _songRequest.ids = id.ToString();
             //由歌曲获取到歌曲详情，包括播放的url
-            string json = await PostAsync(SongUrlPost, _songRequest, true);
+            string json = await PostAsync(SongUrl, _songRequest, true);
 #if UNITY_EDITOR && UNITY_DEBUG
             Debug.Log(json);
 #endif
