@@ -25,6 +25,19 @@ namespace InnerMediaPlayer.Logical
         [JsonIgnore]
         private const string CsrfTokenName = "__csrf";
         [JsonIgnore]
+        internal const string NmTidName = "NMTID";
+        [JsonIgnore]
+        internal const string WmTidName = "WM_TID";
+        [JsonIgnore]
+        internal const string SnakerIdName = "__snaker__id";
+        [JsonIgnore]
+        internal const string GdxidpyhxdEName = "gdxidpyhxdE";
+        [JsonIgnore]
+        internal const string JsessionIdWyyyName = "JSESSIONID-WYYY";
+        [JsonIgnore]
+        internal const string SDeviceIdName = "sDeviceId";
+        
+        [JsonIgnore]
         internal int Count => allCookies.Count;
 
         public string this[params string[] keys]
@@ -112,7 +125,12 @@ namespace InnerMediaPlayer.Logical
             _allCookiesByName ??= new Dictionary<string, Cookie>(allCookies.Count + 1);
             foreach (Cookie cookie in allCookies)
                 _allCookiesByName.Add(cookie.name, cookie);
-            //TODO:Ìí¼ÓsDeviceIdµÈÄ¬ÈÏcookie
+            Add(NmTidName, "00OKiza-FPBFxcRxkbyoNXefGYXsHQAAAGIWAdhJw");
+            Add(WmTidName, "4bkIGNiAj1dBAEBBUAeQlXaAVX4n70dh");
+            Add(SnakerIdName, "gnFrczq64Xk00ykb");
+            Add(GdxidpyhxdEName, "QdLumCONk7TIEb9MtMzZBMrxPfETjSZKx3DLjAJorGaYtJtm4b%5C2tpACpcBBUueRgAkA%2B50kJc%5CqyE7P6qS8RcNywZGiUamq8ShM%2Bqr9Bju5O6a30Zhzb0Ws9%5Chf6cIDlpKRj%5C%2FjhqPWQKKnQf41Z6VezE5GX5YXeuRlP3RZy5n%2FWNet%3A1686311771907");
+            Add(JsessionIdWyyyName, "t%5Cp%2BZcM3cYSy9GhWJwMqBTvtN6UvaDPECMDrMEal%5CfCfHHV4oQ5ypHH953ZeEtcn8vCxdIz37XO%5CivHVw067aBP8JBScsupIZgwGlUI71Dl1f5i44K%5Cyip2DW%2B2xGOw47uezo4G%2FfNdj5%5CeqQx%2Bt%5CSE2f5q73B3jGjBYGa0CkWdyol8%2B%3A1686312668805");
+            Add(SDeviceIdName, "YD-tBV0FdoTLCRBVwRARFPBfEHLsYnHy+On");
             _loadDone = true;
         }
 
