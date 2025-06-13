@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Logical;
 using InnerMediaPlayer.Models;
+using InnerMediaPlayer.Models.Signal;
 using LitJson;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -16,7 +17,7 @@ using Zenject;
 
 namespace InnerMediaPlayer.Tools
 {
-    internal class Network : IInitializable
+    internal class Network : IInitializable, IDisposable
     {
         internal const string SearchUrl = "https://music.163.com/weapi/cloudsearch/get/web";
         internal const string SongUrl = "https://music.163.com/weapi/song/enhance/player/url/v1";
@@ -40,21 +41,34 @@ namespace InnerMediaPlayer.Tools
         private readonly Cookies _cookies;
         private readonly Dictionary<string, string> _formFields;
         private readonly Dictionary<string, string> _urlRequestCookies;
+        private readonly SignalBus _signalBus;
 
-        internal Network(Crypto crypto, Cookies cookies)
+        internal Network(Crypto crypto, Cookies cookies, SignalBus signalBus)
         {
             _crypto = crypto;
             _cookies = cookies;
             _formFields = new Dictionary<string, string>(5) { { EncSeckey, _crypto._encSecKey } };
             _urlRequestCookies = new Dictionary<string, string>();
             _songRequest = new SongRequest();
+            _signalBus = signalBus;
         }
 
-        public async void Initialize()
+        public void Initialize()
         {
-            Cookies.Cookie csrfToken = await _cookies.GetCsrfTokenAsync();
-            _songRequest.csrf_token = csrfToken.value;
             _urlRequestCookies.Add(QrCodeUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName]);
+            _urlRequestCookies.Add(LoginRefreshUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName]);
+            _urlRequestCookies.Add(LoginUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName]);
+            _signalBus.Subscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
+        }
+
+        public void Dispose()
+        {
+            _signalBus.Unsubscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
+        }
+
+        private void AfterSetCsrfCookie(CookieSpreadSignal signal)
+        {
+            _songRequest.csrf_token = signal.CsrfToken;
         }
 
         internal async Task<(string json, Dictionary<string, string> headers)> PostWithHeadersAsync(string url, string json)
@@ -102,7 +116,7 @@ namespace InnerMediaPlayer.Tools
             switch (needCsrfToken)
             {
                 case true when !_formFields.ContainsKey(CsrfToken):
-                    Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
+                    Cookies.Cookie cookie = _cookies.GetCsrfToken();
                     _formFields.Add(CsrfToken, cookie.value);
                     break;
                 case false when _formFields.ContainsKey(CsrfToken):
@@ -129,7 +143,7 @@ namespace InnerMediaPlayer.Tools
             switch (needCsrfToken)
             {
                 case true when !_formFields.ContainsKey(CsrfToken):
-                    Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
+                    Cookies.Cookie cookie = _cookies.GetCsrfToken();
                     _formFields.Add(CsrfToken, cookie.value);
                     break;
                 case false when _formFields.ContainsKey(CsrfToken):

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
 using InnerMediaPlayer.Models.Login;
+using InnerMediaPlayer.Models.Signal;
 using InnerMediaPlayer.Tools;
 using LitJson;
 using QRCoder;
@@ -38,7 +39,7 @@ namespace InnerMediaPlayer.UI
             _qrState = FindGameObjectInList("State", "QrCode").GetComponent<Text>();
 
             await _cookies.LoadFromFileAsync();
-            if (_cookies.Count == 0)
+            if (!_cookies.Contains(Cookies.CsrfTokenName))
             {
                 _qrLogin.onClick.AddListener(QrLogin);
             }
@@ -46,12 +47,11 @@ namespace InnerMediaPlayer.UI
             {
                 #region 对登录状态续存（看url应该是）
 
-                Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
+                Cookies.Cookie cookie = _cookies.GetCsrfToken();
                 Dictionary<string, string> crsfToken = new Dictionary<string, string>(1) { { Network.CsrfToken, cookie.value } };
                 string result = await _network.PostAsync(Network.LoginRefreshUrl, crsfToken, true);
                 LoginRefreshResult refreshCode = JsonMapper.ToObject<LoginRefreshResult>(result);
-                //貌似这个状态码是登录过期？
-                if (refreshCode.code == 301)
+                if (refreshCode.isNeedLogin)
                 {
                     _qrLogin.onClick.AddListener(QrLogin);
                     return;

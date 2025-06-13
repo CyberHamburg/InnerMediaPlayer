@@ -18,11 +18,12 @@ namespace InnerMediaPlayer.Installer
             SignalBusInstaller.Install(Container);
             Container.DeclareSignalWithInterfaces<LyricDisplaySignal>().WithId(DisplayLyricWays.Normal);
             Container.DeclareSignalWithInterfaces<LyricInterruptDisplaySignal>().WithId(DisplayLyricWays.Interrupted);
+            Container.DeclareSignal<CookieSpreadSignal>();
 
             Container.BindInterfacesAndSelfTo<JsonRegister>().AsSingle();
             Container.Bind<Crypto>().ToSelf().AsSingle();
-            Container.Bind<Cookies>().ToSelf().AsSingle();
-            Container.Bind<Lyrics>().ToSelf().AsSingle();
+            Container.BindInterfacesAndSelfTo<Cookies>().AsSingle();
+            Container.BindInterfacesAndSelfTo<Lyrics>().AsSingle();
             Container.Bind<PlaylistUtility>().ToSelf().AsSingle();
             Container.Bind<TaskQueue>().ToSelf().AsTransient();
             Container.Bind(typeof(TaskQueue<>), typeof(TaskQueue<,>), typeof(TaskQueue<,,>)).AsTransient();
@@ -42,7 +43,8 @@ namespace InnerMediaPlayer.Installer
             Container.BindInterfacesAndSelfTo<UIManager>().AsSingle();
             Container.Bind<CoroutineQueue>().FromNewComponentOnNewGameObject()
                 .WithGameObjectName(nameof(CoroutineQueue)).AsTransient();
-
+            
+            Container.BindExecutionOrder<Cookies>(-90);
             Container.BindExecutionOrder<UIManager>(-100);
             Container.BindExecutionOrder<JsonRegister>(-200);
         }

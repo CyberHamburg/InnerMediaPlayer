@@ -19,6 +19,7 @@ using HtmlAgilityPack;
 using Debug = UnityEngine.Debug;
 using Network = InnerMediaPlayer.Tools.Network;
 using System.Linq;
+using InnerMediaPlayer.Models.Signal;
 
 #pragma warning disable IDE0051
 
@@ -156,7 +157,7 @@ namespace InnerMediaPlayer.UI
             _isAwakeInvoked = true;
         }
 
-        private async void Start()
+        private void Start()
         {
             _canvasRectTransform = (RectTransform)uiManager.FindCanvas(GetType(), "Canvas", "CanvasRoot").transform;
             _canvasRect = _canvasRectTransform.rect;
@@ -188,8 +189,12 @@ namespace InnerMediaPlayer.UI
 
             AddEventTriggerInterface(_resultContainer.gameObject, EventTriggerType.EndDrag, JudgeIfTurnThePage);
             AddEventTriggerInterface(_resultContainer.gameObject, EventTriggerType.Drag, CalculateDragDistance);
-            Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
-            _requestJsonData = new SearchRequestData(cookie.value, _songItemConfig._displayNumPerPage);
+            Signal.Subscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
+        }
+
+        private void AfterSetCsrfCookie(CookieSpreadSignal cookieSpreadSignal)
+        {
+            _requestJsonData = new SearchRequestData(cookieSpreadSignal.CsrfToken, _songItemConfig._displayNumPerPage);
             int limitNumEveryPage = int.Parse(_requestJsonData.limit);
             _songItemConfig._songItems = new List<SongDetail>(limitNumEveryPage);
             ExpandSongUINum(limitNumEveryPage, _songItemConfig._songItems, _songItemConfig._songResultContainer);
@@ -207,6 +212,7 @@ namespace InnerMediaPlayer.UI
         private void OnDestroy()
         {
             _searchContainer.onEndEdit.RemoveAllListeners();
+            Signal.Unsubscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
         }
 
         private void OnRectTransformDimensionsChange()

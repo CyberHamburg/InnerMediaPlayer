@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Models.Lyric;
+using InnerMediaPlayer.Models.Signal;
 using InnerMediaPlayer.Tools;
 using LitJson;
 using UnityEngine;
@@ -25,7 +26,7 @@ namespace InnerMediaPlayer.Logical
         Interrupted
     }
 
-    internal class Lyrics
+    internal class Lyrics : IInitializable, IDisposable
     {
         private readonly PlayingList _playingList;
         private readonly Line.Factory _factory;
@@ -81,8 +82,11 @@ namespace InnerMediaPlayer.Logical
         /// </summary>
         internal float ContentPosY { get; private set; }
 
+        private LyricRequest _lyricRequest;
+        private SignalBus _signalBus;
+
         internal Lyrics(PlayingList playingList,Line.Factory factory, Network network, Cookies cookies,
-            TaskQueue<int> taskQueue, TaskQueue interruptTaskQueue)
+            TaskQueue<int> taskQueue, TaskQueue interruptTaskQueue, SignalBus signalBus)
         {
             _playingList = playingList;
             _factory = factory;
@@ -97,6 +101,17 @@ namespace InnerMediaPlayer.Logical
             _minusStopwatch = new Stopwatch();
             this.taskQueue = taskQueue;
             this.interruptTaskQueue = interruptTaskQueue;
+            _signalBus = signalBus;
+        }
+        
+        public void Initialize()
+        {
+            _signalBus.Subscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
+        }
+
+        public void Dispose()
+        {
+            _signalBus.Unsubscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
         }
 
         private (List<Line> list, bool needHighLightPositionAutoReset) PrepareData(string lyric, string translationLyric, Color notPlayingColor, Transform content)
@@ -573,6 +588,12 @@ namespace InnerMediaPlayer.Logical
             void ResetContentPos() => ResetContentPosY(mediator);
         }
 
+        private void AfterSetCsrfCookie(CookieSpreadSignal cookieSpreadSignal)
+        {
+            string cookie = cookieSpreadSignal.CsrfToken;
+            _lyricRequest = new LyricRequest(cookie);
+        }
+
         /// <summary>
         /// 处理歌词逻辑数据及ui数据，将歌词实例化到场景中
         /// </summary>
@@ -586,9 +607,8 @@ namespace InnerMediaPlayer.Logical
             {
                 #region 请求歌词数据
 
-                Cookies.Cookie cookie = await _cookies.GetCsrfTokenAsync();
-                LyricRequest lyricRequest = new LyricRequest(id, cookie.value);
-                string resultJson = await _network.PostAsync(Network.LyricUrl, lyricRequest, true);
+                _lyricRequest.id = id;
+                string resultJson = await _network.PostAsync(Network.LyricUrl, _lyricRequest, true);
                 LyricResult lyricResult = JsonMapper.ToObject<LyricResult>(resultJson);
 
                 #endregion

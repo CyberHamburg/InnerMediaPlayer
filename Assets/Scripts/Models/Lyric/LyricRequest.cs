@@ -23,9 +23,8 @@ namespace InnerMediaPlayer.Models.Lyric
         /// </summary>
         public string csrf_token { get; set; }
 
-        public LyricRequest(int id,string csrfToken)
+        public LyricRequest(string csrfToken)
         {
-            this.id = id;
             csrf_token = csrfToken;
             lv = -1;
             tv = -1;

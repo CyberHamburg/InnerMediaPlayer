@@ -4,12 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using InnerMediaPlayer.Models.Signal;
 using LitJson;
 using LitJson.Extension;
+using Zenject;
 
 namespace InnerMediaPlayer.Logical
 {
-    internal class Cookies
+    internal class Cookies : IInitializable
     {
         public List<Cookie> allCookies;
         [JsonIgnore]
@@ -19,11 +21,11 @@ namespace InnerMediaPlayer.Logical
         [JsonIgnore]
         private StringBuilder _cookies;
         [JsonIgnore]
-        private bool _loadDone;
-        [JsonIgnore]
         internal Cookie _csrfToken;
         [JsonIgnore]
-        private const string CsrfTokenName = "__csrf";
+        internal SignalBus signalBus;
+        [JsonIgnore]
+        internal const string CsrfTokenName = "__csrf";
         [JsonIgnore]
         internal const string NmTidName = "NMTID";
         [JsonIgnore]
@@ -36,9 +38,34 @@ namespace InnerMediaPlayer.Logical
         internal const string JsessionIdWyyyName = "JSESSIONID-WYYY";
         [JsonIgnore]
         internal const string SDeviceIdName = "sDeviceId";
-        
-        [JsonIgnore]
-        internal int Count => allCookies.Count;
+
+        [Inject]
+        internal Cookies(SignalBus signalBus)
+        {
+            this.signalBus = signalBus;
+        }
+
+        /// <summary>
+        /// json序列化需要勿删
+        /// </summary>
+        public Cookies()
+        {
+            
+        }
+
+        void IInitializable.Initialize()
+        {
+            allCookies = new List<Cookie>();
+            _allCookiesByName = new Dictionary<string, Cookie>();
+            //暂时没研究以下cookie是什么用处
+            //在请求unikey时有set-cookie NMTID字段，此处应该不需要赋值
+            // Add(NmTidName, "00OKiza-FPBFxcRxkbyoNXefGYXsHQAAAGIWAdhJw");
+            Add(WmTidName, "4bkIGNiAj1dBAEBBUAeQlXaAVX4n70dh");
+            Add(SnakerIdName, "gnFrczq64Xk00ykb");
+            Add(GdxidpyhxdEName, "QdLumCONk7TIEb9MtMzZBMrxPfETjSZKx3DLjAJorGaYtJtm4b%5C2tpACpcBBUueRgAkA%2B50kJc%5CqyE7P6qS8RcNywZGiUamq8ShM%2Bqr9Bju5O6a30Zhzb0Ws9%5Chf6cIDlpKRj%5C%2FjhqPWQKKnQf41Z6VezE5GX5YXeuRlP3RZy5n%2FWNet%3A1686311771907");
+            Add(JsessionIdWyyyName, "t%5Cp%2BZcM3cYSy9GhWJwMqBTvtN6UvaDPECMDrMEal%5CfCfHHV4oQ5ypHH953ZeEtcn8vCxdIz37XO%5CivHVw067aBP8JBScsupIZgwGlUI71Dl1f5i44K%5Cyip2DW%2B2xGOw47uezo4G%2FfNdj5%5CeqQx%2Bt%5CSE2f5q73B3jGjBYGa0CkWdyol8%2B%3A1686312668805");
+            Add(SDeviceIdName, "YD-tBV0FdoTLCRBVwRARFPBfEHLsYnHy+On");
+        }
 
         public string this[params string[] keys]
         {
@@ -86,23 +113,25 @@ namespace InnerMediaPlayer.Logical
                 throw new NullReferenceException($"不存在名为{name}的cookie!");
             cookie.value = newValue;
         }
+        
+        internal bool Contains(string name) => _allCookiesByName.ContainsKey(name);
 
-        internal async Task<Cookie> FindAsync(string name)
+        internal Cookie Find(string name)
         {
-            while (!_loadDone)
-            {
-                await Task.Yield();
-            }
-            
             _allCookiesByName.TryGetValue(name, out Cookie foundCookie);
             return foundCookie ?? throw new NullReferenceException($"不存在名为{name}的cookie!");
         }
 
-        internal async Task<Cookie> GetCsrfTokenAsync()
+        internal Cookie GetCsrfToken()
         {
             if (_csrfToken != null)
+            {
+                signalBus.Fire(new CookieSpreadSignal(_csrfToken.value));
                 return _csrfToken;
-            _csrfToken = await FindAsync(CsrfTokenName);
+            }
+            
+            _csrfToken = Find(CsrfTokenName);
+            signalBus.Fire(new CookieSpreadSignal(_csrfToken.value));
             return _csrfToken;
         }
 
@@ -117,25 +146,20 @@ namespace InnerMediaPlayer.Logical
             using FileStream fileStream = File.Open(_fileLocation, FileMode.OpenOrCreate, FileAccess.Read);
             byte[] data = new byte[fileStream.Length];
             int readCount = await fileStream.ReadAsync(data, 0, data.Length);
-            if (readCount == 0)
-                return;
-            string json = Encoding.UTF8.GetString(data);
-            Cookies cookies = JsonMapper.ToObject<Cookies>(json);
-            allCookies = cookies.allCookies;
-            _allCookiesByName ??= new Dictionary<string, Cookie>(allCookies.Count + 1);
-            foreach (Cookie cookie in allCookies)
-                _allCookiesByName.Add(cookie.name, cookie);
-            Add(NmTidName, "00OKiza-FPBFxcRxkbyoNXefGYXsHQAAAGIWAdhJw");
-            Add(WmTidName, "4bkIGNiAj1dBAEBBUAeQlXaAVX4n70dh");
-            Add(SnakerIdName, "gnFrczq64Xk00ykb");
-            Add(GdxidpyhxdEName, "QdLumCONk7TIEb9MtMzZBMrxPfETjSZKx3DLjAJorGaYtJtm4b%5C2tpACpcBBUueRgAkA%2B50kJc%5CqyE7P6qS8RcNywZGiUamq8ShM%2Bqr9Bju5O6a30Zhzb0Ws9%5Chf6cIDlpKRj%5C%2FjhqPWQKKnQf41Z6VezE5GX5YXeuRlP3RZy5n%2FWNet%3A1686311771907");
-            Add(JsessionIdWyyyName, "t%5Cp%2BZcM3cYSy9GhWJwMqBTvtN6UvaDPECMDrMEal%5CfCfHHV4oQ5ypHH953ZeEtcn8vCxdIz37XO%5CivHVw067aBP8JBScsupIZgwGlUI71Dl1f5i44K%5Cyip2DW%2B2xGOw47uezo4G%2FfNdj5%5CeqQx%2Bt%5CSE2f5q73B3jGjBYGa0CkWdyol8%2B%3A1686312668805");
-            Add(SDeviceIdName, "YD-tBV0FdoTLCRBVwRARFPBfEHLsYnHy+On");
-            _loadDone = true;
+            if (readCount != 0)
+            {
+                string json = Encoding.UTF8.GetString(data);
+                Cookies cookies = JsonMapper.ToObject<Cookies>(json);
+                if (cookies.allCookies != null)
+                    allCookies = cookies.allCookies;
+                foreach (Cookie cookie in allCookies)
+                    _allCookiesByName.Add(cookie.name, cookie);
+            }
         }
 
         internal async Task SaveToFileAsync()
         {
+            GetCsrfToken();
             string json = JsonMapper.ToJson(this);
             byte[] data = Encoding.UTF8.GetBytes(json);
             using FileStream fileStream = File.OpenWrite(_fileLocation);
@@ -145,7 +169,6 @@ namespace InnerMediaPlayer.Logical
                 fileStream.SetLength(0);
             }
             await fileStream.WriteAsync(data, 0, data.Length);
-            _loadDone = true;
         }
 
         public class Cookie
