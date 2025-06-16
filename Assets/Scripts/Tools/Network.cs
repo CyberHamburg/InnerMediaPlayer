@@ -55,15 +55,73 @@ namespace InnerMediaPlayer.Tools
 
         public void Initialize()
         {
-            _urlRequestCookies.Add(QrCodeUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName]);
-            _urlRequestCookies.Add(LoginRefreshUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName]);
-            _urlRequestCookies.Add(LoginUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName]);
+            _urlRequestCookies.Add(QrCodeUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.RememberMe]);
+            _urlRequestCookies.Add(LoginUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.RememberMe]);
+            _urlRequestCookies.Add(QrCodeGenerateUrl, _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.RememberMe]);
             _signalBus.Subscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
         }
 
         public void Dispose()
         {
             _signalBus.Unsubscribe<CookieSpreadSignal>(AfterSetCsrfCookie);
+        }
+
+        internal void ResetMusicU()
+        {
+            if (_urlRequestCookies.ContainsKey(LoginRefreshUrl))
+                _urlRequestCookies[LoginRefreshUrl] = _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName,
+                    Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName,
+                    Cookies.MusicU, Cookies.RememberMe];
+            else
+                _urlRequestCookies.Add(LoginRefreshUrl,
+                    _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName,
+                        Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.MusicU, Cookies.RememberMe]);
+        }
+
+        internal void ResetCsrfTokenAndMusicU()
+        {
+            if (!_urlRequestCookies.ContainsKey(LoginRefreshUrl))
+            {
+                _urlRequestCookies.Add(SearchUrl,
+                    _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName,
+                        Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName, Cookies.MusicU]);
+                _urlRequestCookies.Add(SongUrl,
+                    _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName,
+                        Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName, Cookies.MusicU]);
+                _urlRequestCookies.Add(LyricUrl,
+                    _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName,
+                        Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName, Cookies.MusicU]);
+                _urlRequestCookies.Add(ArtistUrl,
+                    _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName,
+                        Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName, Cookies.MusicU]);
+                _urlRequestCookies.Add(AlbumUrl,
+                    _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName,
+                        Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName, Cookies.MusicU]);
+                _urlRequestCookies.Add(LoginRefreshUrl,
+                    _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName, Cookies.SnakerIdName,
+                        Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.MusicU, Cookies.RememberMe]);
+            }
+            else
+            {
+                _urlRequestCookies[SearchUrl] = _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName,
+                    Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName,
+                    Cookies.MusicU];
+                _urlRequestCookies[SongUrl] = _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName,
+                    Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName,
+                    Cookies.MusicU];
+                _urlRequestCookies[LyricUrl] = _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName,
+                    Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName,
+                    Cookies.MusicU];
+                _urlRequestCookies[ArtistUrl] = _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName,
+                    Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName,
+                    Cookies.MusicU];
+                _urlRequestCookies[AlbumUrl] = _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName, Cookies.WmTidName,
+                    Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName, Cookies.CsrfTokenName,
+                    Cookies.MusicU];
+                _urlRequestCookies[LoginRefreshUrl] = _cookies[Cookies.NmTidName, Cookies.GdxidpyhxdEName,
+                    Cookies.WmTidName, Cookies.SnakerIdName, Cookies.JsessionIdWyyyName, Cookies.SDeviceIdName,
+                    Cookies.MusicU, Cookies.RememberMe];
+            }
         }
 
         private void AfterSetCsrfCookie(CookieSpreadSignal signal)
@@ -316,6 +374,7 @@ namespace InnerMediaPlayer.Tools
             unityWebRequest.SetRequestHeader("Accept", "*/*");
             unityWebRequest.SetRequestHeader("Accept-Language",
                 "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-TW;q=0.6,or;q=0.5");
+            unityWebRequest.SetRequestHeader("Dnt", "1");
             if (_urlRequestCookies.TryGetValue(requestedUrl, out string cookie))
                 unityWebRequest.SetRequestHeader("Cookie", cookie);
         }

@@ -39,6 +39,7 @@ namespace InnerMediaPlayer.UI
             _qrState = FindGameObjectInList("State", "QrCode").GetComponent<Text>();
 
             await _cookies.LoadFromFileAsync();
+            _network.ResetMusicU();
             if (!_cookies.Contains(Cookies.CsrfTokenName))
             {
                 _qrLogin.onClick.AddListener(QrLogin);
@@ -56,6 +57,9 @@ namespace InnerMediaPlayer.UI
                     _qrLogin.onClick.AddListener(QrLogin);
                     return;
                 }
+
+                _cookies.BroadcastCsrf(_cookies.GetCsrfToken().value);
+                _network.ResetCsrfTokenAndMusicU();
 
                 #endregion
 
@@ -102,18 +106,15 @@ namespace InnerMediaPlayer.UI
             {
                 _cookies.Clear();
                 string headers = localHeaders["Set-Cookie"];
-                const string csrf = "__csrf";
-                int csrfUIndex = headers.LastIndexOf(csrf, StringComparison.Ordinal);
-                string csrfUString = headers.Substring(csrfUIndex + csrf.Length + 1);
+                int csrfUIndex = headers.LastIndexOf(Cookies.CsrfTokenName, StringComparison.Ordinal);
+                string csrfUString = headers.Substring(csrfUIndex + Cookies.CsrfTokenName.Length + 1);
                 int csrfLength = csrfUString.IndexOf(';');
-                const string musicU = "MUSIC_U";
-                int musicUIndex = headers.LastIndexOf(musicU, StringComparison.Ordinal);
-                string musicUString = headers.Substring(musicUIndex + musicU.Length + 1);
+                int musicUIndex = headers.LastIndexOf(Cookies.MusicU, StringComparison.Ordinal);
+                string musicUString = headers.Substring(musicUIndex + Cookies.MusicU.Length + 1);
                 int musicLength = musicUString.IndexOf(';');
-                _cookies.Add(csrf, csrfUString.Substring(0, csrfLength));
-                _cookies.Add(musicU, musicUString.Substring(0, musicLength));
-                _cookies.Add("NMTID", Crypto.LastKeyString);
-                _cookies.Add("__remember_me", true.ToString());
+                _cookies.Add(Cookies.CsrfTokenName, csrfUString.Substring(0, csrfLength));
+                _cookies.BroadcastCsrf(_cookies.GetCsrfToken().value);
+                _cookies.Add(Cookies.MusicU, musicUString.Substring(0, musicLength));
                 await _cookies.SaveToFileAsync();
             }
             _qrCode.gameObject.SetActive(false);

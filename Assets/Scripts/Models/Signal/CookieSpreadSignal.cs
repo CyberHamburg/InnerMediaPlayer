@@ -2,11 +2,11 @@ using UnityEngine;
 
 namespace InnerMediaPlayer.Models.Signal
 {
-    public struct CookieSpreadSignal
+    internal struct CookieSpreadSignal
     {
-        public string CsrfToken;
+        internal string CsrfToken { get; private set; }
 
-        public CookieSpreadSignal(string csrfToken)
+        internal CookieSpreadSignal(string csrfToken)
         {
             CsrfToken = csrfToken;
         }
