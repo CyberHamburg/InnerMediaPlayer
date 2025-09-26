@@ -5,7 +5,7 @@ namespace InnerMediaPlayer.Models.Lyric
         /// <summary>
         /// 歌曲id
         /// </summary>
-        public int id { get; set; }
+        public long id { get; set; }
         /// <summary>
         /// -1获取原歌词，默认为1不获取
         /// </summary>

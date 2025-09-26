@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Management;
@@ -54,9 +53,9 @@ namespace InnerMediaPlayer.Logical
 
         internal bool Pause { get; private set; }
 
-        internal float CurrentTime => _audioSource.clip == null ? default : _audioSource.time;
+        internal float CurrentTime => _audioSource.clip == null ? 0f : _audioSource.time;
 
-        internal float TotalTime => _audioSource.clip == null ? default : _audioSource.clip.length;
+        internal float TotalTime => _audioSource.clip == null ? 0f : _audioSource.clip.length;
 
         internal float? AlreadyPlayedRate
         {
@@ -107,7 +106,7 @@ namespace InnerMediaPlayer.Logical
         /// <param name="album"></param>
         /// <param name="uiContent"></param>
         /// <param name="disposeLyric"></param>
-        internal void AddToList(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album, RectTransform uiContent, Action<int> disposeLyric)
+        internal void AddToList(long id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album, RectTransform uiContent, Action<long> disposeLyric)
         {
             Song song = _songFactory.Create(id, songName, artist, albumUrl, audioClip, album);
             PlayList.AddLast(song);
@@ -133,11 +132,11 @@ namespace InnerMediaPlayer.Logical
         /// <param name="album"></param>
         /// <param name="uiContent"></param>
         /// <param name="disposeLyric"></param>
-        internal int ForceAdd(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,RectTransform uiContent,Action<int> disposeLyric)
+        internal long ForceAdd(long id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,RectTransform uiContent,Action<long> disposeLyric)
         {
             Song song = _songFactory.Create(id, songName, artist, albumUrl, audioClip, album);
             //取消并移除当前播放的曲目
-            int disposedId = default;
+            long disposedId = 0;
             if (PlayList.Count>0)
             {
                 LinkedListNode<Song> currentPlaying = PlayList.First;
@@ -166,7 +165,7 @@ namespace InnerMediaPlayer.Logical
             UIList.AddFirst(ui);
             ui._element.SetAsFirstSibling();
 
-            if (disposedId != id && disposedId != default)
+            if (disposedId != id && disposedId != 0)
             {
                 UIElement disposedElement = UIList.FirstOrDefault(element => element._id == disposedId);
                 UIList.Remove(disposedElement);
@@ -178,7 +177,7 @@ namespace InnerMediaPlayer.Logical
             return disposedId;
         }
 
-        private void Delete(int id, Song song, UIElement ui, Action<int> disposeLyric)
+        private void Delete(long id, Song song, UIElement ui, Action<long> disposeLyric)
         {
 #if !UNITY_EDITOR && UNITY_DEBUG
                     Debug.Log($"删除了{song._songName}");
@@ -246,7 +245,7 @@ namespace InnerMediaPlayer.Logical
             static int FindIndex<T>(LinkedList<T> list, T value)
             {
                 if (value == null)
-                    return default;
+                    return 0;
                 int index = 0;
                 LinkedListNode<T> node = list.First;
                 EqualityComparer<T> comparer = EqualityComparer<T>.Default;
@@ -404,8 +403,9 @@ namespace InnerMediaPlayer.Logical
         /// <param name="disposedSongId">要销毁的歌曲id</param>
         /// <param name="stopByForce">是否被强制停止播放</param>
         /// <param name="token"></param>
+        /// <param name="progress"></param>
         /// <returns></returns>
-        internal async Task IterationListAsync(Action<Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
+        internal async Task IterationListAsync(Action<Song> updateUI, Lyric lyric, long disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
 #if UNITY_DEBUG
@@ -423,7 +423,7 @@ namespace InnerMediaPlayer.Logical
 
             LinkedListNode<Song> currentPlaying = PlayList.First;
             //判断是否需要移除歌词
-            if (disposedSongId != default && disposedSongId != currentPlaying.Value._id)
+            if (disposedSongId != 0 && disposedSongId != currentPlaying.Value._id)
                 lyric.Dispose(disposedSongId);
 
             while (PlayList.Count > 0)
@@ -432,7 +432,7 @@ namespace InnerMediaPlayer.Logical
                 {
                     case true:
                         //重置时间，否则会导致不从开始播放
-                        _audioSource.timeSamples = default;
+                        _audioSource.timeSamples = 0;
                         Pause = false;
                         if (disposedSongId != currentPlaying.Value._id)
                             Play();
@@ -476,7 +476,7 @@ namespace InnerMediaPlayer.Logical
                 }
 
                 //重置时间，否则会导致不从开始播放
-                _audioSource.timeSamples = default;
+                _audioSource.timeSamples = 0;
                 //播放完一首歌后或被歌曲中断后隐藏当前歌词，为下一首歌准备
                 lyric.Disable(currentPlaying.Value._id);
                 //歌曲被中断后重置pause状态
@@ -538,7 +538,7 @@ namespace InnerMediaPlayer.Logical
             progress.Report(TaskStatus.RanToCompletion);
         }
 
-        internal bool Contains(int id)
+        internal bool Contains(long id)
         {
             Song item = _songFactory.Create(id, null, null, null, null, null);
             bool contains = PlayList.Contains(item);
@@ -557,10 +557,10 @@ namespace InnerMediaPlayer.Logical
             }
         }
 
-        internal class Song : IPoolable<int, string, string, string, AudioClip, Sprite, IMemoryPool>, IDisposable,
+        internal class Song : IPoolable<long, string, string, string, AudioClip, Sprite, IMemoryPool>, IDisposable,
             IEquatable<Song>
         {
-            internal int _id;
+            internal long _id;
             internal string _songName;
             internal string _artist;
             internal string _albumUrl;
@@ -575,7 +575,7 @@ namespace InnerMediaPlayer.Logical
 
             public void OnDespawned()
             {
-                _id = default;
+                _id = 0;
                 _songName = string.Empty;
                 _artist = string.Empty;
                 _audioClip = null;
@@ -583,7 +583,7 @@ namespace InnerMediaPlayer.Logical
                 _memoryPool = null;
             }
 
-            public void OnSpawned(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
+            public void OnSpawned(long id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
                 IMemoryPool memoryPool)
             {
                 _id = id;
@@ -600,19 +600,19 @@ namespace InnerMediaPlayer.Logical
                 _memoryPool.Despawn(this);
             }
 
-            internal class Factory : PlaceholderFactory<int, string, string, string, AudioClip, Sprite, Song>
+            internal class Factory : PlaceholderFactory<long, string, string, string, AudioClip, Sprite, Song>
             {
 
             }
         }
 
-        internal class UIElement:IPoolable<int, string, string, Sprite, Transform, IMemoryPool>,IDisposable, IEquatable<UIElement>
+        internal class UIElement:IPoolable<long, string, string, Sprite, Transform, IMemoryPool>,IDisposable, IEquatable<UIElement>
         {
             internal RectTransform _element;
             internal EventTrigger _eventTrigger;
             internal RectTransform _move;
             internal Button _delete;
-            internal int _id;
+            internal long _id;
 
             private IMemoryPool _memoryPool;
             private Text _songName;
@@ -656,7 +656,7 @@ namespace InnerMediaPlayer.Logical
                 _album.sprite = album;
             }
 
-            void IPoolable<int, string, string, Sprite, Transform, IMemoryPool>.OnDespawned()
+            void IPoolable<long, string, string, Sprite, Transform, IMemoryPool>.OnDespawned()
             {
                 _element.gameObject.SetActive(false);
                 _element.SetAsLastSibling();
@@ -666,16 +666,16 @@ namespace InnerMediaPlayer.Logical
                     entry.callback.RemoveAllListeners();
                 }
 
-                _id = default;
+                _id = 0;
                 _songName.text = null;
                 _artist.text = null;
                 _album.sprite = null;
                 _memoryPool = null;
             }
             
-            void IPoolable<int, string, string, Sprite, Transform, IMemoryPool>.OnSpawned(int id, string songName, string artist, Sprite album, Transform content, IMemoryPool memoryPool)
+            void IPoolable<long, string, string, Sprite, Transform, IMemoryPool>.OnSpawned(long id, string songName, string artist, Sprite album, Transform content, IMemoryPool memoryPool)
             {
-                if (_element != null && _songName != null && _artist != null && _album != null)
+                if (_element && _songName && _artist && _album)
                 {
                     _element.gameObject.SetActive(true);
                     _songName.text = songName;
@@ -699,7 +699,7 @@ namespace InnerMediaPlayer.Logical
                 return _id == other._id;
             }
 
-            internal class Factory : PlaceholderFactory<int, string, string, Sprite, Transform, UIElement>
+            internal class Factory : PlaceholderFactory<long, string, string, Sprite, Transform, UIElement>
             {
                 private readonly DiContainer _container;
 
@@ -708,10 +708,10 @@ namespace InnerMediaPlayer.Logical
                     _container = container;
                 }
 
-                public override UIElement Create(int id,string songName, string artist, Sprite album, Transform content)
+                public override UIElement Create(long id,string songName, string artist, Sprite album, Transform content)
                 {
                     UIElement ui = base.Create(id, songName, artist, album, content);
-                    if (ui._songName == null)
+                    if (!ui._songName)
                     {
                         GameObject item = _container.InstantiatePrefabResource("PlayQueueItem", content);
                         ui._element = (RectTransform)item.transform;

@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Models.Lyric;
 using InnerMediaPlayer.Models.Signal;
@@ -31,18 +30,18 @@ namespace InnerMediaPlayer.Logical
         private readonly PlayingList _playingList;
         private readonly Line.Factory _factory;
         private readonly Network _network;
-        private readonly Cookies _cookies;
+
         //每句歌词时长的计时器
         private readonly Stopwatch _stopwatch;
         //暂停期间需要减去的计时器数值
         private readonly Stopwatch _minusStopwatch;
         //以歌曲id为key,Lyric为value的字典
-        private readonly Dictionary<int, Lyric> _lyrics;
+        private readonly Dictionary<long, Lyric> _lyrics;
 
         /// <summary>
         /// 歌词正常播放时所加入的任务队列
         /// </summary>
-        internal readonly TaskQueue<int> taskQueue;
+        internal readonly TaskQueue<long> taskQueue;
         /// <summary>
         /// 当需要调整歌词进度时所使用的任务队列
         /// </summary>
@@ -62,7 +61,7 @@ namespace InnerMediaPlayer.Logical
 
         private static readonly StringBuilder TimeParsePatten = new StringBuilder(30);
 
-        private int _rollingLyricsId;
+        private long _rollingLyricsId;
         /// <summary>
         /// 当此值改变时，则表示需要重新计算<see cref="ContentPosY"/>并赋值
         /// </summary>
@@ -83,20 +82,19 @@ namespace InnerMediaPlayer.Logical
         internal float ContentPosY { get; private set; }
 
         private LyricRequest _lyricRequest;
-        private SignalBus _signalBus;
+        private readonly SignalBus _signalBus;
 
-        internal Lyrics(PlayingList playingList,Line.Factory factory, Network network, Cookies cookies,
-            TaskQueue<int> taskQueue, TaskQueue interruptTaskQueue, SignalBus signalBus)
+        internal Lyrics(PlayingList playingList,Line.Factory factory, Network network,
+            TaskQueue<long> taskQueue, TaskQueue interruptTaskQueue, SignalBus signalBus)
         {
             _playingList = playingList;
             _factory = factory;
             _network = network;
-            _cookies = cookies;
             _defaultPlayingColor = new Color32(235, 235, 235, 255);
             _defaultNotPlayingColor = Color.black;
             _sparePlayingColor = new Color32(125, 125, 125, 255);
             _spareNotPlayingColor = new Color32(125, 125, 125, 255);
-            _lyrics = new Dictionary<int, Lyric>(20);
+            _lyrics = new Dictionary<long, Lyric>(20);
             _stopwatch = new Stopwatch();
             _minusStopwatch = new Stopwatch();
             this.taskQueue = taskQueue;
@@ -366,8 +364,9 @@ namespace InnerMediaPlayer.Logical
         /// <param name="id"></param>
         /// <param name="resetContentPosY"></param>
         /// <param name="token">任务中断令牌</param>
+        /// <param name="progress"></param>
         /// <returns>任务是否被中断执行？</returns>
-        private async Task<bool> CountDownTimerAsync(double maxTime, int id, Action resetContentPosY, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
+        private async Task<bool> CountDownTimerAsync(double maxTime, long id, Action resetContentPosY, CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             try
             {
@@ -375,7 +374,7 @@ namespace InnerMediaPlayer.Logical
                 _minusStopwatch.Reset();
                 _stopwatch.Start();
                 //计算开始后如果暂停则需要减去暂停期间的时间
-                double minusSeconds = default;
+                double minusSeconds = 0d;
                 while (_stopwatch.Elapsed.TotalSeconds - minusSeconds < maxTime)
                 {
                     await Task.Yield();
@@ -442,14 +441,14 @@ namespace InnerMediaPlayer.Logical
         /// <param name="id"></param>
         /// <param name="mediator"></param>
         /// <param name="token"></param>
+        /// <param name="progress"></param>
         /// <returns></returns>
-        internal async Task DisplayAsync(int id, UI.Lyric.Mediator mediator, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
+        internal async Task DisplayAsync(long id, UI.Lyric.Mediator mediator, CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
             //在换歌后调整前一首的高亮为普通
-            if (_rollingLyricsId != 0 && _lyrics.ContainsKey(_rollingLyricsId))
+            if (_rollingLyricsId != 0 && _lyrics.TryGetValue(_rollingLyricsId, out Lyric lastLyric))
             {
-                Lyric lastLyric = _lyrics[_rollingLyricsId];
                 if (_highLightLyric != null)
                     _highLightLyric._text.color = lastLyric.normal;
             }
@@ -483,7 +482,7 @@ namespace InnerMediaPlayer.Logical
             Line lastLine = null;
             for (int i = 0; i < lines.Count; i++)
             {
-                if (i != default)
+                if (i != 0)
                     lastLine = lines[i - 1];
                 Line currentLine = lines[i];
                 if(await IsInterruptWhenScrollAsync(currentLine._timeInterval, id, lyric.normal, lyric.highLight, token, progress, lastLine, currentLine, mediator))
@@ -498,16 +497,17 @@ namespace InnerMediaPlayer.Logical
         /// </summary>
         /// <param name="mediator"></param>
         /// <param name="token"></param>
+        /// <param name="progress"></param>
         /// <returns></returns>
-        internal async Task DisplayByInterruptAsync(UI.Lyric.Mediator mediator, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
+        internal async Task DisplayByInterruptAsync(UI.Lyric.Mediator mediator, CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
             Lyric lyric = _lyrics[_rollingLyricsId];
             List<Line> lines = lyric.lines;
             bool needHighLightPositionAutoReset = lyric.needHighLightPositionAutoReset;
             mediator._needHighLightPositionAutoReset = needHighLightPositionAutoReset;
-            int targetIndex = default;
-            float startTime = default;
+            int targetIndex = 0;
+            float startTime = 0f;
             float currentTime = _playingList.CurrentTime;
             //寻找目标歌词索引
             for (int i = 0; i < lines.Count; i++)
@@ -552,7 +552,7 @@ namespace InnerMediaPlayer.Logical
             //从目标歌词开始顺序展示
             for (int i = targetIndex + 1; i < lines.Count; i++)
             {
-                if (i != default)
+                if (i != 0)
                     lastLine = lines[i - 1];
                 Line currentLine = lines[i];
                 if (await IsInterruptWhenScrollAsync(currentLine._timeInterval, _rollingLyricsId, lyric.normal, lyric.highLight, token,
@@ -570,12 +570,13 @@ namespace InnerMediaPlayer.Logical
         /// <param name="songId"></param>
         /// <param name="highLight"></param>
         /// <param name="token"></param>
+        /// <param name="progress"></param>
         /// <param name="lastLine"></param>
         /// <param name="targetLine"></param>
         /// <param name="mediator"></param>
         /// <param name="normal"></param>
         /// <returns>任务是否被中断执行？</returns>
-        private async Task<bool> IsInterruptWhenScrollAsync(double maxTime, int songId, Color normal, Color highLight, Tools.CancellationTokenSource token,
+        private async Task<bool> IsInterruptWhenScrollAsync(double maxTime, long songId, Color normal, Color highLight, CancellationTokenSource token,
             IProgress<TaskStatus> progress, Line lastLine, Line targetLine, UI.Lyric.Mediator mediator)
         {
             try
@@ -608,7 +609,7 @@ namespace InnerMediaPlayer.Logical
         /// <param name="mediator"></param>
         /// <param name="album"></param>
         /// <returns></returns>
-        internal async Task InstantiateLyricAsync(int id,UI.Lyric.Mediator mediator, Texture2D album)
+        internal async Task InstantiateLyricAsync(long id,UI.Lyric.Mediator mediator, Texture2D album)
         {
             if (!_lyrics.ContainsKey(id))
             {
@@ -658,9 +659,9 @@ namespace InnerMediaPlayer.Logical
         private static Color SampleAlbumColor(Texture2D album, float alpha)
         {
             Color[] array = album.GetPixels();
-            float r=default;
-            float g=default;
-            float b=default;
+            float r = 0f;
+            float g = 0f;
+            float b = 0f;
             foreach (Color c in array)
             {
                 r += c.r;
@@ -673,11 +674,11 @@ namespace InnerMediaPlayer.Logical
             return color;
         }
 
-        internal void Dispose(int id)
+        internal void Dispose(long id)
         {
-            if (!_lyrics.ContainsKey(id))
+            if (!_lyrics.TryGetValue(id, out Lyric lyric1))
                 return;
-            List<Line> lyric = _lyrics[id].lines;
+            List<Line> lyric = lyric1.lines;
             _lyrics.Remove(id);
             for (int i = 0; i < lyric.Count; i++)
             {
@@ -688,24 +689,24 @@ namespace InnerMediaPlayer.Logical
             lyric.Clear();
         }
 
-        internal void SetActive(int id, bool value)
+        internal void SetActive(long id, bool value)
         {
-            if (id == 0 || !_lyrics.ContainsKey(id))
+            if (id == 0 || !_lyrics.TryGetValue(id, out Lyric lyric1))
                 return;
-            List<Line> lyric = _lyrics[id].lines;
+            List<Line> lyric = lyric1.lines;
             foreach (Line line in lyric)
             {
                 line._text.gameObject.SetActive(value);
             }
         }
 
-        internal void CalculateContentPosY(UI.Lyric.Mediator mediator)
+        private void CalculateContentPosY(UI.Lyric.Mediator mediator)
         {
             if (!_lyrics[_rollingLyricsId].needHighLightPositionAutoReset)
                 return;
             List<Line> lines = _lyrics[_rollingLyricsId].lines;
-            int targetIndex = default;
-            float startTime = default;
+            int targetIndex = 0;
+            float startTime = 0f;
             float currentTime = _playingList.CurrentTime;
             for (int i = 0; i < lines.Count; i++)
             {
@@ -757,8 +758,8 @@ namespace InnerMediaPlayer.Logical
 
             void IPoolable<float, string, Color, Transform, IMemoryPool>.OnDespawned()
             {
-                _time = default;
-                _timeInterval = default;
+                _time = 0f;
+                _timeInterval = 0f;
                 _text.gameObject.SetActive(false);
                 _text.text = null;
                 _text.lineSpacing = _originalLineSpacing;
@@ -768,7 +769,7 @@ namespace InnerMediaPlayer.Logical
             void IPoolable<float, string, Color, Transform, IMemoryPool>.OnSpawned(float time, string lyric, Color defaultColor, Transform transform, IMemoryPool pool)
             {
                 _time = time;
-                if (_text != null)
+                if (_text)
                 {
                     _text.text = lyric;
                 }
@@ -797,7 +798,7 @@ namespace InnerMediaPlayer.Logical
                 public override Line Create(float time, string lyric, Color defaultColor, Transform content)
                 {
                     Line line = base.Create(time, lyric, defaultColor, content);
-                    if (line._text == null)
+                    if (!line._text)
                     {
                         GameObject go = _container.InstantiatePrefabResource("LyricText", content);
                         line._text = go.GetComponent<Text>();
@@ -821,7 +822,7 @@ namespace InnerMediaPlayer.Logical
             }
         }
 
-        internal readonly struct Lyric
+        private readonly struct Lyric
         {
             internal readonly List<Line> lines;
 

@@ -32,9 +32,9 @@ namespace InnerMediaPlayer.Models.Search.FullName
             set => album = value;
         }
 
-        public int id { get; set; }
+        public long id { get; set; }
 
-        public int status { get; set; }
+        public long status { get; set; }
 
         public CannotListenReason CanPlay()
         {

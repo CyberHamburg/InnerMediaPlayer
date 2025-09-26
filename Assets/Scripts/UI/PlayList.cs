@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
@@ -60,17 +59,17 @@ namespace InnerMediaPlayer.UI
 
         internal void ProcessAdjustment(float value) => _playingList.ProcessAdjustment(value);
 
-        internal Task IterationListAsync(Action<PlayingList.Song> updateUI, Lyric lyric, int disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) =>
+        internal Task IterationListAsync(Action<PlayingList.Song> updateUI, Lyric lyric, long disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) =>
             _playingList.IterationListAsync(updateUI, lyric, disposedSongId, stopByForce, token, progress);
 
-        internal int ForceAdd(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
-            RectTransform uiContent, Action<int> disposeLyric) =>
+        internal long ForceAdd(long id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
+            RectTransform uiContent, Action<long> disposeLyric) =>
             _playingList.ForceAdd(id, songName, artist, albumUrl, audioClip, album, uiContent, disposeLyric);
 
-        internal void AddToList(int id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
-            RectTransform uiContent, Action<int> disposeLyric) =>
+        internal void AddToList(long id, string songName, string artist, string albumUrl, AudioClip audioClip, Sprite album,
+            RectTransform uiContent, Action<long> disposeLyric) =>
             _playingList.AddToList(id, songName, artist, albumUrl, audioClip, album, uiContent, disposeLyric);
 
-        internal bool Contains(int id) => _playingList.Contains(id);
+        internal bool Contains(long id) => _playingList.Contains(id);
     }
 }

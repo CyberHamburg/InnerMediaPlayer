@@ -35,9 +35,9 @@ namespace InnerMediaPlayer.Installer
 
             Container.BindFactory<float, string, Color, Transform, Lyrics.Line, Lyrics.Line.Factory>()
                 .FromPoolableMemoryPool(x => x.WithInitialSize(30));
-            Container.BindFactory<int, string, string, string, AudioClip, Sprite, PlayingList.Song, PlayingList.Song.Factory>()
+            Container.BindFactory<long, string, string, string, AudioClip, Sprite, PlayingList.Song, PlayingList.Song.Factory>()
                 .FromPoolableMemoryPool();
-            Container.BindFactory<int, string, string, Sprite, Transform, PlayingList.UIElement, PlayingList.UIElement.Factory>()
+            Container.BindFactory<long, string, string, Sprite, Transform, PlayingList.UIElement, PlayingList.UIElement.Factory>()
                 .FromPoolableMemoryPool();
 
             Container.BindInterfacesAndSelfTo<UIManager>().AsSingle();

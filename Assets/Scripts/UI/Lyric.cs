@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Threading;
 using System.Threading.Tasks;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
@@ -27,7 +26,7 @@ namespace InnerMediaPlayer.UI
         private const float HighLightPositionResetTimer = 2f;
 
         internal LyricDisplaySignal LyricDisplaySignal { get; set; }
-        internal LyricInterruptDisplaySignal LyricInterruptDisplaySignal { get; set; }
+        internal LyricInterruptDisplaySignal LyricInterruptDisplaySignal { get; private set; }
 
         private Mediator Controller
         {
@@ -94,10 +93,10 @@ namespace InnerMediaPlayer.UI
             _needScrollAutomatically = true;
         }
 
-        private IEnumerator HighLightPositionReset(Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
+        private IEnumerator HighLightPositionReset(CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
-            _highLightPositionResetTimer = default;
+            _highLightPositionResetTimer = 0f;
             while (_highLightPositionResetTimer < HighLightPositionResetTimer)
             {
                 while (!_needScrollAutomatically && !_mediator._needScrollAutomatically)
@@ -132,15 +131,17 @@ namespace InnerMediaPlayer.UI
         /// </summary>
         /// <param name="id">歌曲id</param>
         /// <param name="token"></param>
+        /// <param name="progress"></param>
         /// <returns></returns>
-        internal Task DisplayLyric(int id, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) => _lyrics.DisplayAsync(id, Controller, token, progress);
+        private Task DisplayLyric(long id, CancellationTokenSource token, IProgress<TaskStatus> progress) => _lyrics.DisplayAsync(id, Controller, token, progress);
 
         /// <summary>
         /// 在特定时间点开始展示歌词
         /// </summary>
         /// <param name="token"></param>
+        /// <param name="progress"></param>
         /// <returns></returns>
-        internal Task DisplayByInterruptAsync(Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) => _lyrics.DisplayByInterruptAsync(Controller, token, progress);
+        private Task DisplayByInterruptAsync(CancellationTokenSource token, IProgress<TaskStatus> progress) => _lyrics.DisplayByInterruptAsync(Controller, token, progress);
 
         /// <summary>
         /// 停止正常展示歌词任务队列的运行
@@ -149,13 +150,13 @@ namespace InnerMediaPlayer.UI
 
         internal void StopDisplayByInterruptTask() => _lyrics.interruptTaskQueue.Stop();
 
-        internal Task InstantiateLyricAsync(int id, Texture2D album) => _lyrics.InstantiateLyricAsync(id, Controller, album);
+        internal Task InstantiateLyricAsync(long id, Texture2D album) => _lyrics.InstantiateLyricAsync(id, Controller, album);
 
         internal void SetDefaultColor() => Controller.image.color = Controller.originalBackgroundColor;
 
-        internal void Dispose(int id) => _lyrics.Dispose(id);
+        internal void Dispose(long id) => _lyrics.Dispose(id);
 
-        internal void Disable(int id) => _lyrics.SetActive(id, false);
+        internal void Disable(long id) => _lyrics.SetActive(id, false);
 
         internal class Mediator
         {

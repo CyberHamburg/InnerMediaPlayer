@@ -35,7 +35,7 @@ namespace InnerMediaPlayer.Models.Search
         /// <summary>
         /// 
         /// </summary>
-        public int id { get; set; }
+        public long id { get; set; }
 
         public int st { get; set; }
 
@@ -66,7 +66,7 @@ namespace InnerMediaPlayer.Models.Search
 
     public class CellItem : IRelationshipSortable
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string name { get; set; }
         public string picUrl { get; set; }
         public List<Artist> ar { get; set; }
@@ -90,7 +90,7 @@ namespace InnerMediaPlayer.Models.Search
 
     public interface ISongBindable : IRelationshipSortable
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public Album al { get; set; }
         public CannotListenReason CanPlay();
     }

@@ -11,7 +11,7 @@ namespace InnerMediaPlayer.Models
 
         internal class Cell
         {
-            public int Id { get; set; }
+            public long Id { get; set; }
             public string Name { get; set; }
             public string Artist { get; set; }
             public string PictureUrl { get; set; }

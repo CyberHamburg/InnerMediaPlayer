@@ -48,7 +48,6 @@ namespace InnerMediaPlayer.UI
         private Network _network;
         private Crypto _crypto;
         private PlaylistUtility _playlistUtility;
-        private Cookies _cookies;
         private PrefabManager _prefabManager;
         //搜索框
         private InputField _searchContainer;
@@ -72,7 +71,7 @@ namespace InnerMediaPlayer.UI
         //拼接歌名与添加重复的提示语
         private StringBuilder _addRepeatedly;
         //正在同时加载的歌曲id
-        private List<int> _loadingSongsId;
+        private List<long> _loadingSongsId;
         private RectTransform[] _containerTransformArray;
         private RectTransform _canvasRectTransform;
         private CanvasScaler _canvasScaler;
@@ -125,13 +124,7 @@ namespace InnerMediaPlayer.UI
             }
         }
 
-        private float RollSpeed
-        {
-            get
-            {
-                return Screen.height / _canvasScaler.referenceResolution.y * rollSpeed;
-            }
-        }
+        private float RollSpeed => Screen.height / _canvasScaler.referenceResolution.y * rollSpeed;
 
         [Inject]
         private void Initialized(Network network, PrefabManager prefabManager, Crypto crypto, Cookies cookies, 
@@ -140,7 +133,6 @@ namespace InnerMediaPlayer.UI
             _network = network;
             _prefabManager = prefabManager;
             _crypto = crypto;
-            _cookies = cookies;
             _searchTaskQueue = searchTaskQueue;
             _tipTaskQueue = tipsTaskQueue;
             _playlistUtility = playlistUtility;
@@ -151,7 +143,7 @@ namespace InnerMediaPlayer.UI
             _expansion = new StringBuilder(35);
             _addSongTip = new StringBuilder(100);
             _addRepeatedly = new StringBuilder(130);
-            _loadingSongsId = new List<int>(10);
+            _loadingSongsId = new List<long>(10);
             _htmlDocument = new HtmlDocument();
             _coroutineCollection = new Dictionary<RectTransform, IEnumerable<ITextCollection>>(6);
             _isAwakeInvoked = true;
@@ -175,7 +167,7 @@ namespace InnerMediaPlayer.UI
             _artistItemConfig._songContainer = FindGameObjectInList("ArtistSongContent", "Display").GetComponent<RectTransform>();
             _albumItemConfig._resultContainer = FindGameObjectInList("AlbumContent", "Display").GetComponent<RectTransform>();
             _albumItemConfig._songContainer = FindGameObjectInList("AlbumSongContent", "Display").GetComponent<RectTransform>();
-            _containerTransformArray = new RectTransform[] {_songItemConfig._songResultContainer, _artistItemConfig._resultContainer,
+            _containerTransformArray = new[] {_songItemConfig._songResultContainer, _artistItemConfig._resultContainer,
                 _artistItemConfig._songContainer, _albumItemConfig._resultContainer, _albumItemConfig._songContainer};
             _nullResult = FindGameObjectInList("NullResult", null);
             _artistItemConfig._returnLastPanel = FindGameObjectInList("ReturnLastPanel", "ArtistSongContent").GetComponent<Button>();
@@ -235,18 +227,18 @@ namespace InnerMediaPlayer.UI
                 foreach (ITextCollection item in keyValuePair.Value)
                 {
                     //换回原宽度
-                    StartNewCoroutineAndStopAllOlds(item.OriginalSizeXOne, item.NameOne, item.TextMask);
-                    StartNewCoroutineAndStopAllOlds(item.OriginalSizeXTwo, item.NameTwo, item.TextMask);
+                    StartNewCoroutineAndStopAllOlds(item.OriginalSizeXOne, item.NameOne);
+                    StartNewCoroutineAndStopAllOlds(item.OriginalSizeXTwo, item.NameTwo);
                 }
             }
 
-            void StartNewCoroutineAndStopAllOlds(float originalSizeX, Text text, RectTransform textMask)
+            void StartNewCoroutineAndStopAllOlds(float originalSizeX, Text text)
             {
                 if (text == null || !text.gameObject.activeInHierarchy)
                     return;
                 text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, originalSizeX);
                 text.StopAllCoroutines();
-                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text));
             }
         }
 
@@ -297,9 +289,8 @@ namespace InnerMediaPlayer.UI
                     {
                         Text songName = _songItemConfig._songItems[i].NameOne;
                         Text artist = _songItemConfig._songItems[i].NameTwo;
-                        RectTransform textMask = _songItemConfig._songItems[i].TextMask;
-                        songName.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, songName, textMask));
-                        artist.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, artist, textMask));
+                        songName.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, songName));
+                        artist.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, artist));
                     }
 
                     if (SetActive(WhereNullResult.Song, true)) break;
@@ -352,8 +343,7 @@ namespace InnerMediaPlayer.UI
             for (int i = 0; i < config._enabledItemsCount; i++)
             {
                 Text text = config._items[i].NameOne;
-                RectTransform textMask = config._items[i].TextMask;
-                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text));
             }
         }
 
@@ -361,15 +351,15 @@ namespace InnerMediaPlayer.UI
         {
             IEnumerable<ITextCollection> collections;
             if (ReferenceEquals(rectTransform, _songItemConfig._songResultContainer))
-                collections = _songItemConfig._songItems.Cast<ITextCollection>();
+                collections = _songItemConfig._songItems;
             else if (ReferenceEquals(rectTransform, _artistItemConfig._resultContainer))
-                collections = _artistItemConfig._items.Cast<ITextCollection>();
+                collections = _artistItemConfig._items;
             else if (ReferenceEquals(rectTransform, _artistItemConfig._songContainer))
-                collections = _artistItemConfig._songsItems.Cast<ITextCollection>();
+                collections = _artistItemConfig._songsItems;
             else if (ReferenceEquals(rectTransform, _albumItemConfig._resultContainer))
-                collections = _albumItemConfig._items.Cast<ITextCollection>();
+                collections = _albumItemConfig._items;
             else
-                collections = _albumItemConfig._songsItems.Cast<ITextCollection>();
+                collections = _albumItemConfig._songsItems;
 
             if (_coroutineCollection.ContainsKey(rectTransform))
                 _coroutineCollection[rectTransform] = collections;
@@ -377,7 +367,7 @@ namespace InnerMediaPlayer.UI
                 _coroutineCollection.Add(rectTransform, collections);
         }
 
-        private IEnumerator HorizontalTextRoller(float stayTimer, float rollSpeed, Text text, RectTransform textMask)
+        private IEnumerator HorizontalTextRoller(float stayTimer, float rollSpeed, Text text)
         {
             yield return null;
             if (text.preferredWidth < text.rectTransform.rect.width)
@@ -387,7 +377,7 @@ namespace InnerMediaPlayer.UI
             float endPositionX = text.rectTransform.position.x;
             text.rectTransform.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Left, 0f, textPreferredWidth);
             float beginningPositionX = text.rectTransform.position.x;
-            Vector2 beginningPosition = (Vector2)text.rectTransform.position;
+            Vector2 beginningPosition = text.rectTransform.position;
             Vector2 endingPosition = new Vector2(endPositionX, text.rectTransform.position.y);
             Vector2 normalizedVelocity = (endingPosition - beginningPosition).normalized;
 
@@ -405,7 +395,7 @@ namespace InnerMediaPlayer.UI
         }
 
         //搜索动作特殊计算
-        private async Task FadeOut(float displayTimer, float fadeOutTimeInterval, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress)
+        private async Task FadeOut(float displayTimer, float fadeOutTimeInterval, CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
             _tipText.gameObject.SetActive(true);
@@ -574,8 +564,6 @@ namespace InnerMediaPlayer.UI
                         return;
                     _albumItemConfig._requestKeywords = str;
                     break;
-                default:
-                    break;
             }
 
             _requestJsonData.s = str;
@@ -623,7 +611,7 @@ namespace InnerMediaPlayer.UI
                     result.result.songs = PlaylistUtility.SortByRelationship(result.result.songs, _requestJsonData.s);
                     List<ISongBindable> relationshipSortables = result.result.songs.Cast<ISongBindable>().ToList();
                     _songItemConfig._enabledSongsCount = relationshipSortables.Count;
-                    await BindSongData(relationshipSortables, _songItemConfig._songItems, _songItemConfig._songResultContainer, token, progress);
+                    await BindSongData(relationshipSortables, _songItemConfig._songItems, token, progress);
                     progress.Report(TaskStatus.Running);
                     break;
                 case SearchType.Artist:
@@ -663,8 +651,6 @@ namespace InnerMediaPlayer.UI
                     await BindCellData(true, Network.AlbumUrl, Network.AlbumXPath, result.result.albums, _albumItemConfig, token, progress);
                     progress.Report(TaskStatus.Running);
                     break;
-                default:
-                    break;
             }
             
             progress.Report(TaskStatus.RanToCompletion);
@@ -686,8 +672,9 @@ namespace InnerMediaPlayer.UI
         /// <param name="songs"></param>
         /// <param name="uis"></param>
         /// <param name="token"></param>
+        /// <param name="progress"></param>
         /// <returns></returns>
-        private async Task BindSongData(IList<ISongBindable> songs, IList<SongDetail> uis, RectTransform containerTransform, CancellationTokenSource token, IProgress<TaskStatus> progress)
+        private async Task BindSongData(IList<ISongBindable> songs, IList<SongDetail> uis, CancellationTokenSource token, IProgress<TaskStatus> progress)
         {
             progress.Report(TaskStatus.Running);
             //对搜索到的结果实行对数据和ui的绑定
@@ -699,7 +686,6 @@ namespace InnerMediaPlayer.UI
                 Text artist = uis[i].NameTwo;
                 Button play = uis[i]._play;
                 Button addList = uis[i]._addList;
-                RectTransform textMask = uis[i].TextMask;
 
                 Image album = uis[i]._album;
                 try
@@ -854,11 +840,10 @@ namespace InnerMediaPlayer.UI
             {
                 Text songName = uis[i].NameOne;
                 Text artist = uis[i].NameTwo;
-                RectTransform textMask = uis[i].TextMask;
                 if (!songName.gameObject.activeInHierarchy || !artist.gameObject.activeInHierarchy)
                     break;
-                songName.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, songName, textMask));
-                artist.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, artist, textMask));
+                songName.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, songName));
+                artist.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, artist));
             }
 
             _isSearching = false;
@@ -868,10 +853,15 @@ namespace InnerMediaPlayer.UI
         /// <summary>
         /// 根据数据对ui进行赋值并绑定按键功能
         /// </summary>
-        /// <param name="result"></param>
+        /// <param name="needConvertString2Long"></param>
+        /// <param name="requestUrl"></param>
+        /// <param name="jsonNodePath"></param>
+        /// <param name="list"></param>
+        /// <param name="config"></param>
         /// <param name="token"></param>
-        /// <returns></returns>
-        private async Task BindCellData<T>(bool needConvertString2Int, string requestUrl, string jsonNodePath, List<T> list, UIItemConfig config, CancellationTokenSource token, IProgress<TaskStatus> progress) where T : CellItem
+        /// <param name="progress"></param>
+        /// <typeparam name="T"></typeparam>
+        private async Task BindCellData<T>(bool needConvertString2Long, string requestUrl, string jsonNodePath, List<T> list, UIItemConfig config, CancellationTokenSource token, IProgress<TaskStatus> progress) where T : CellItem
         {
             progress.Report(TaskStatus.Running);
             //对搜索到的结果实行对数据和ui的绑定
@@ -879,9 +869,7 @@ namespace InnerMediaPlayer.UI
             {
                 CellItem item = list[i];
                 GameObject go = config._items[i]._root;
-                Image artist = config._items[i]._image;
                 Text artistText = config._items[i].NameOne;
-                RectTransform textMask = config._items[i].TextMask;
                 Button openDetailPage = config._items[i]._click;
 
                 Image album = config._items[i]._image;
@@ -915,7 +903,7 @@ namespace InnerMediaPlayer.UI
                         return;
                     }
                     string standardJson = Convert2StandardJson(node.InnerText);
-                    Models.Search.FullName.SearchedResult searchedResult = JsonMapper.ToObject<Models.Search.FullName.SearchedResult>(standardJson, needConvertString2Int);
+                    Models.Search.FullName.SearchedResult searchedResult = JsonMapper.ToObject<Models.Search.FullName.SearchedResult>(standardJson, needConvertString2Long);
                     //打开歌曲界面
                     config._returnLastPanel.onClick.RemoveAllListeners();
                     config._songContainer.gameObject.SetActive(true);
@@ -947,7 +935,7 @@ namespace InnerMediaPlayer.UI
                     searchedResult.results = PlaylistUtility.SortByRelationship(searchedResult.results, _requestJsonData.s);
                     ExpandSongUINum(searchedResult.results.Count, config._songsItems, config._songContainer);
                     List<ISongBindable> relationshipSortables = searchedResult.results.Cast<ISongBindable>().ToList();
-                    await BindSongData(relationshipSortables, config._songsItems, config._songContainer, token, progress);
+                    await BindSongData(relationshipSortables, config._songsItems, token, progress);
                 }
 
                 string Convert2StandardJson(string json)
@@ -962,10 +950,9 @@ namespace InnerMediaPlayer.UI
             for (int i = 0; i < list.Count; i++)
             {
                 Text text = config._items[i].NameOne;
-                RectTransform textMask = config._items[i].TextMask;
                 if (!text.gameObject.activeInHierarchy)
                     break;
-                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text, textMask));
+                text.StartCoroutine(HorizontalTextRoller(stayTimer, RollSpeed, text));
             }
 
             _isSearching = false;
@@ -1015,7 +1002,7 @@ namespace InnerMediaPlayer.UI
             return result;
         }
 
-        private async Task<bool> Play(int id,string songName,string artist,string albumUrl, Sprite album, SongResult songResult)
+        private async Task<bool> Play(long id,string songName,string artist,string albumUrl, Sprite album, SongResult songResult)
         {
             _loadingSongsId.Add(id);
             bool isSuccess = await _playlistUtility.PlayAsync(id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying, songResult);
@@ -1023,7 +1010,7 @@ namespace InnerMediaPlayer.UI
             return isSuccess;
         }
 
-        private async Task<bool> AddToList(int id, string songName, string artist, string albumUrl, Sprite album, SongResult songResult)
+        private async Task<bool> AddToList(long id, string songName, string artist, string albumUrl, Sprite album, SongResult songResult)
         {
             _loadingSongsId.Add(id);
             bool isSuccess = await _playlistUtility.AddAsync(true, id, songName, artist, albumUrl, album, _lyric, _playList, _nowPlaying, songResult);

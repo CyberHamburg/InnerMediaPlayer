@@ -288,7 +288,7 @@ namespace InnerMediaPlayer.Tools
             return clip;
         }
 
-        internal async Task<SongResult> GetSongResultDetailAsync(int id)
+        internal async Task<SongResult> GetSongResultDetailAsync(long id)
         {
             _songRequest.ids = id.ToString();
             //由歌曲获取到歌曲详情，包括播放的url

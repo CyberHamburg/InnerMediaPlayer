@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using InnerMediaPlayer.Base;
 using InnerMediaPlayer.Logical;
 using InnerMediaPlayer.Models.Login;
-using InnerMediaPlayer.Models.Signal;
-using InnerMediaPlayer.Tools;
 using LitJson;
 using QRCoder;
 using QRCoder.Unity;

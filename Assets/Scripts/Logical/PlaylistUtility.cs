@@ -21,9 +21,9 @@ namespace InnerMediaPlayer.Logical
         private readonly Network _network;
         private readonly PlayingList _playingList;
         private readonly StringBuilder _stringBuilder;
-        private readonly TaskQueue<int, bool> _iterateSongListTaskQueue;
+        private readonly TaskQueue<long, bool> _iterateSongListTaskQueue;
 
-        public PlaylistUtility(Network network, TaskQueue<int, bool> iterateSongListTaskQueue, PlayingList playingList)
+        public PlaylistUtility(Network network, TaskQueue<long, bool> iterateSongListTaskQueue, PlayingList playingList)
         {
             _network = network;
             _iterateSongListTaskQueue = iterateSongListTaskQueue;
@@ -106,7 +106,7 @@ namespace InnerMediaPlayer.Logical
 
         }
 
-        internal async Task<bool> PlayAsync(int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying, SongResult songResult)
+        internal async Task<bool> PlayAsync(long id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric, PlayList playList, NowPlaying nowPlaying, SongResult songResult)
         {
             AudioClip clip;
             try
@@ -121,7 +121,7 @@ namespace InnerMediaPlayer.Logical
 
             if (clip != null)
             {
-                int disposedSongId = playList.ForceAdd(id, songName, artist, albumUrl, clip, album, playList.ScrollRect.content, lyric.Dispose);
+                long disposedSongId = playList.ForceAdd(id, songName, artist, albumUrl, clip, album, playList.ScrollRect.content, lyric.Dispose);
                 _iterateSongListTaskQueue.AddTask(disposedSongId, true, IterationListAsync);
                 return true;
             }
@@ -130,11 +130,11 @@ namespace InnerMediaPlayer.Logical
 #endif
 
             return false;
-            Task IterationListAsync(int disposeSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) =>
+            Task IterationListAsync(long disposeSongId, bool stopByForce, CancellationTokenSource token, IProgress<TaskStatus> progress) =>
                 playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposeSongId, stopByForce, token, progress);
         }
 
-        internal async Task<bool> AddAsync(bool playNow, int id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric,
+        internal async Task<bool> AddAsync(bool playNow, long id, string songName, string artist, string albumUrl, Sprite album, Lyric lyric,
             PlayList playList, NowPlaying nowPlaying, SongResult songResult)
         {
             AudioClip clip;
@@ -151,7 +151,7 @@ namespace InnerMediaPlayer.Logical
             {
                 playList.AddToList(id, songName, artist, albumUrl, clip, album, playList.ScrollRect.content, lyric.Dispose);
                 if (playNow)
-                    _iterateSongListTaskQueue.AddTask(default, false, IterationListAsync);
+                    _iterateSongListTaskQueue.AddTask(0, false, IterationListAsync);
                 return true;
             }
 #if UNITY_DEBUG
@@ -159,14 +159,14 @@ namespace InnerMediaPlayer.Logical
 #endif
 
             return false;
-            Task IterationListAsync(int disposedSongId, bool stopByForce, Tools.CancellationTokenSource token, IProgress<TaskStatus> progress) =>
+            Task IterationListAsync(long disposedSongId, bool stopByForce, CancellationTokenSource token, IProgress<TaskStatus> progress) =>
                 playList.IterationListAsync(nowPlaying.UpdateUI, lyric, disposedSongId, stopByForce, token, progress);
         }
 
         /// <summary>
         /// 如果有任一歌手或名字完全匹配或部分匹配则优先展示，完全匹配的优先度最高
         /// </summary>
-        /// <param name="result"></param>
+        /// <param name="list"></param>
         /// <param name="requestString"></param>
         internal static List<T> SortByRelationship<T>(IList<T> list, string requestString) where T : IRelationshipSortable
         {

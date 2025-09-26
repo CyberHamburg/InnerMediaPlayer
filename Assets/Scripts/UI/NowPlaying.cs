@@ -232,9 +232,9 @@ namespace InnerMediaPlayer.UI
                 _pauseButton.gameObject.SetActive(false);
                 _lyric.SetDefaultColor();
                 TimeProcessControl();
-                _processBar.value = default;
-                _processBackground.value = default;
-                _processText.value = default;
+                _processBar.value = 0f;
+                _processBackground.value = 0f;
+                _processText.value = 0f;
                 return;
             }
 

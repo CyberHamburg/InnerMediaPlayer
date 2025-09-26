@@ -65,7 +65,7 @@ namespace InnerMediaPlayer.Tools
             while (_taskQueue.Count > 0 && !waitForCancel)
             {
                 _runningFunc = _taskQueue.Dequeue();
-                if (process != null && process.Status == TaskStatus.Running)
+                if (process is { Status: TaskStatus.Running })
                 {
                     Stop();
                     while (process.Status == TaskStatus.Running)
@@ -135,7 +135,7 @@ namespace InnerMediaPlayer.Tools
             while (_taskQueue.Count > 0 && !waitForCancel)
             {
                 _runningFunc = _taskQueue.Dequeue();
-                if (process != null && process.Status == TaskStatus.Running)
+                if (process is { Status: TaskStatus.Running })
                 {
                     Stop();
                     while (process.Status == TaskStatus.Running)
